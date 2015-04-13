@@ -47,6 +47,8 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
         /** Timestamp. */
         private final long ts;
 
+        private final long threadId;
+
         /** Log entry type. */
         private final int entryType;
 
@@ -82,6 +84,7 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
          */
         private VisorIgfsProfilerParsedLine(
             long ts,
+            long threadId,
             int entryType,
             String path,
             IgfsMode mode,
@@ -94,6 +97,7 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
             long totalBytes
         ) {
             this.ts = ts;
+            this.threadId = threadId;
             this.entryType = entryType;
             this.path = path;
             this.mode = mode;
@@ -178,8 +182,8 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
 
                 if (logsDir != null)
                     return parse(logsDir, arg);
-                else
-                    return Collections.emptyList();
+
+                return Collections.emptyList();
             }
             catch (IOException | IllegalArgumentException e) {
                 throw new IgniteException("Failed to parse profiler logs for IGFS: " + arg, e);
@@ -290,6 +294,7 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
                 if (LOG_TYPES.contains(entryType))
                     return new VisorIgfsProfilerParsedLine(
                         parseLong(ss, LOG_COL_TIMESTAMP, 0),
+                        parseLong(ss, LOG_COL_THREAD_ID, 0),
                         entryType,
                         parseString(ss, LOG_COL_PATH),
                         parseIgfsMode(ss, LOG_COL_IGFS_MODE),
@@ -384,6 +389,7 @@ public class VisorIgfsProfilerTask extends VisorOneNodeTask<String, Collection<V
                 new VisorIgfsProfilerEntry(
                     path,
                     ts,
+                    0, // TODO GG-6107
                     mode,
                     size,
                     bytesRead,

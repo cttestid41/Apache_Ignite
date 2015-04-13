@@ -44,6 +44,9 @@ public class VisorIgfsProfilerEntry implements Serializable {
     /** Timestamp of last file operation. */
     private final long ts;
 
+    /** Thread ID that worked with file. */
+    private final long threadId;
+
     /** IGFS mode. */
     private final IgfsMode mode;
 
@@ -84,6 +87,7 @@ public class VisorIgfsProfilerEntry implements Serializable {
     public VisorIgfsProfilerEntry(
         String path,
         long ts,
+        long threadId,
         IgfsMode mode,
         long size,
         long bytesRead,
@@ -98,6 +102,7 @@ public class VisorIgfsProfilerEntry implements Serializable {
 
         this.path = path;
         this.ts = ts;
+        this.threadId = threadId;
         this.mode = mode;
         this.size = size;
         this.bytesRead = bytesRead;
@@ -142,6 +147,13 @@ public class VisorIgfsProfilerEntry implements Serializable {
      */
     public long timestamp() {
         return ts;
+    }
+
+    /**
+     * @return Thread ID.
+     */
+    public long threadId() {
+        return threadId;
     }
 
     /**

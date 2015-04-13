@@ -41,10 +41,14 @@ public class VisorIgfsProfiler {
     public static VisorIgfsProfilerEntry aggregateIgfsProfilerEntries(List<VisorIgfsProfilerEntry> entries) {
         assert !F.isEmpty(entries);
 
+        VisorIgfsProfilerEntry first = entries.get(0);
+
         if (entries.size() == 1)
-            return entries.get(0); // No need to aggregate.
+            return first; // No need to aggregate.
         else {
-            String path = entries.get(0).path();
+            String path = first.path();
+
+            long threadId = first.threadId();
 
             Collections.sort(entries, VisorIgfsProfilerEntry.ENTRY_TIMESTAMP_COMPARATOR);
 
@@ -80,7 +84,7 @@ public class VisorIgfsProfiler {
                 counters.aggregate(entry.counters());
             }
 
-            return new VisorIgfsProfilerEntry(path, ts, mode, size, bytesRead, readTime, userReadTime,
+            return new VisorIgfsProfilerEntry(path, ts, threadId, mode, size, bytesRead, readTime, userReadTime,
                 bytesWritten, writeTime, userWriteTime, counters);
         }
     }
