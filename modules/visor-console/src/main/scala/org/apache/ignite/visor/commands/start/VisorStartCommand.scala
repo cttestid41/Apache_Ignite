@@ -319,6 +319,7 @@ class VisorStartCommand extends VisorConsoleCommand {
 
             println("NOTE:")
             println("    - Successful start attempt DOES NOT mean that node actually started.")
+            println("    - Log files are stored in $TMPDIR/ignite-startNodes folder or /tmp/ignite-startNodes if $TMPDIR is not set.")
             println("    - For large topologies (> 100s nodes) it can take over 10 minutes for all nodes to start.")
             println("    - See individual node log for details.")
         }
@@ -346,7 +347,8 @@ object VisorStartCommand {
         ),
         args = List(
             "-f=<path>" -> List(
-                "Path to INI file that contains topology specification."
+                "Path to INI file that contains topology specification.",
+                "Example file bin/include/visorcmd/node_startup_by_ssh.ini constains information about file content."
             ),
             "-h=<hostname>" -> List(
                 "Hostname where to start nodes.",
