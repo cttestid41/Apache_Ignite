@@ -42,7 +42,6 @@
                         <outputDirectory>/visorcmd</outputDirectory>
                         <includes>
                             <include>licenses/**</include>
-                            <include>*.ini</include>
                         </includes>
                     </fileSet>
 
