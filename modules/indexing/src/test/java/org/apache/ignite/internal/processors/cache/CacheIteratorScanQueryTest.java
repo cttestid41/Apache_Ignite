@@ -25,6 +25,7 @@ import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
+import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 
 /**
@@ -71,8 +72,12 @@ public class CacheIteratorScanQueryTest extends GridCommonAbstractTest {
         Ignite server = startGrid(0);
 
         client = true;
-        ccfgs = new CacheConfiguration[] {new CacheConfiguration("test-cache")
-            .setCacheMode(REPLICATED).setNodeFilter(new AlwaysFalseCacheFilter())};
+        ccfgs = new CacheConfiguration[] {
+            new CacheConfiguration("test-cache-replicated").setCacheMode(REPLICATED)
+                .setNodeFilter(new AlwaysFalseCacheFilter()),
+            new CacheConfiguration("test-cache-partitioned").setCacheMode(PARTITIONED)
+                .setNodeFilter(new AlwaysFalseCacheFilter())
+        };
 
         Ignite client = startGrid(1);
 
@@ -84,10 +89,13 @@ public class CacheIteratorScanQueryTest extends GridCommonAbstractTest {
         assertEquals(1, client.cluster().forServers().nodes().size());
         assertEquals(1, client.cluster().forClients().nodes().size());
 
-        IgniteCache<Object, Object> cache = client.cache("test-cache");
+        for (CacheConfiguration cfg : ccfgs) {
+            IgniteCache<Object, Object> cache = client.cache(cfg.getName());
 
-        assertNotNull(cache);
-        assertNotNull(cache.iterator());
+            assertNotNull(cache);
+            assertNotNull(cache.iterator());
+            assertFalse(cache.iterator().hasNext());
+        }
     }
 
     /**
