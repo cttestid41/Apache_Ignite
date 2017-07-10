@@ -17,10 +17,14 @@
 
 package org.apache.ignite.internal.processors.cache.distributed;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
+import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
 /**
@@ -50,6 +54,16 @@ public class CacheExchangeCoalescingTest extends GridCommonAbstractTest {
     public void testConcurrentJoin1() throws Exception {
         startGrid(0);
 
+        final AtomicInteger idx = new AtomicInteger(1);
 
+        IgniteInternalFuture<?> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+            @Override public Void call() throws Exception {
+                startGrid(idx.getAndIncrement());
+
+                return null;
+            }
+        }, 2, "start-node");
+
+        fut.get();
     }
 }

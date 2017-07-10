@@ -131,6 +131,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     private static final int EXCHANGE_HISTORY_SIZE =
         IgniteSystemProperties.getInteger(IgniteSystemProperties.IGNITE_EXCHANGE_HISTORY_SIZE, 1_000);
 
+    /** TODO IGNITE-5578. */
+    public static final IgniteProductVersion EXCHANGE_COALESCING_SINCE = IgniteProductVersion.fromString("2.0.0");
+
     /** Atomic reference for pending timeout object. */
     private AtomicReference<ResendTimeoutObject> pendingResend = new AtomicReference<>();
 
@@ -381,7 +384,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
             exchId = exchangeId(n.id(), affinityTopologyVersion(evt), evt);
 
-            exchFut = exchangeFuture(exchId, evt, cache,null, null);
+            exchFut = exchangeFuture(exchId, evt, cache, null, null);
         }
         else {
             DiscoveryCustomMessage customMsg = ((DiscoveryCustomEvent)evt).customMessage();
@@ -1762,6 +1765,54 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             ((IgniteDiagnosticAware)fut).addDiagnosticRequest(ctx);
     }
 
+    private boolean supportsCoalescing(ClusterNode node) {
+        return node.version().compareToIgnoreTimestamp(EXCHANGE_COALESCING_SINCE) >= 0;
+    }
+
+    public ExchangeEvents checkExchangeCoalescing(GridDhtPartitionsExchangeFuture curFut) {
+        ExchangeEvents evts = null;
+
+        try {
+            U.sleep(1000);
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
+            if (task instanceof GridDhtPartitionsExchangeFuture) {
+                GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
+
+                int evtType = fut.discoveryEvent().type();
+
+                if (evtType == EVT_NODE_JOINED) {
+                    DiscoveryEvent evt = fut.discoveryEvent();
+
+                    ClusterNode node = evt.eventNode();
+
+                    if (!supportsCoalescing(node))
+                        break;
+
+                    fut.mergeWithFuture(curFut);
+
+                    if (evts == null)
+                        evts = new ExchangeEvents();
+
+                    evts.init(fut);
+                }
+                else
+                    break;
+//                else if (evtType == EVT_NODE_LEFT || evtType == EVT_NODE_FAILED) {
+//
+//                }
+            }
+            else
+                break;
+        }
+
+        return evts;
+    }
+
     /**
      * Exchange future thread. All exchanges happen only by one thread and next
      * exchange will not start until previous one completes.
@@ -1779,12 +1830,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
          */
         private ExchangeWorker() {
             super(cctx.igniteInstanceName(), "partition-exchanger", GridCachePartitionExchangeManager.this.log);
-        }
-
-        void checkExchangeCoalescing() {
-            for (CachePartitionExchangeWorkerTask task : futQ) {
-
-            }
         }
 
         /**

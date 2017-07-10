@@ -32,6 +32,7 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.lang.IgniteProductVersion;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -81,6 +82,9 @@ public class DiscoCache {
     /** Alive nodes. */
     private final Set<UUID> alives = new GridConcurrentHashSet<>();
 
+    /** */
+    private final IgniteProductVersion minNodeVer;
+
     /**
      * @param state Current cluster state.
      * @param loc Local node.
@@ -123,6 +127,26 @@ public class DiscoCache {
         this.cacheGrpAffNodes = cacheGrpAffNodes;
         this.nodeMap = nodeMap;
         this.alives.addAll(alives);
+
+        IgniteProductVersion minVer = null;
+
+        for (int i = 0; i < allNodes.size(); i++) {
+            ClusterNode node = allNodes.get(i);
+
+            if (minVer == null)
+                minVer = node.version();
+            else if (node.version().compareTo(minVer) < 0)
+                minVer = node.version();
+        }
+
+        minNodeVer = minVer;
+    }
+
+    /**
+     * @return Minimum node version.
+     */
+    public IgniteProductVersion minimumNodeVersion() {
+        return minNodeVer;
     }
 
     /**
