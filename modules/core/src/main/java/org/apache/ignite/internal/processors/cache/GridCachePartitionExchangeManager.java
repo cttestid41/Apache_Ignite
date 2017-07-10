@@ -1787,6 +1787,12 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             super(cctx.igniteInstanceName(), "partition-exchanger", GridCachePartitionExchangeManager.this.log);
         }
 
+        void checkExchangeCoalescing() {
+            for (CachePartitionExchangeWorkerTask task : futQ) {
+
+            }
+        }
+
         /**
          * @param exchFut Exchange future.
          */
