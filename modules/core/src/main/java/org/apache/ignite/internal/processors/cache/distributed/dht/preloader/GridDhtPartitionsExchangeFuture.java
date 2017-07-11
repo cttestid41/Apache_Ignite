@@ -435,7 +435,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert discoEvt != null : this;
         assert exchId.nodeId().equals(discoEvt.eventNode().id()) : this;
 
-        exchCtx = new ExchangeContext();
+        exchCtx = new ExchangeContext(cctx.exchange().exchangeProtocolVersion(discoCache.minimumNodeVersion()));
 
         try {
             discoCache.updateAlives(cctx.discovery());
@@ -863,7 +863,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                 continue;
 
-            if (!localJoinExchange() || cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom()))
+            if (!localJoinExchange() || grp.affinity().lastVersion().topologyVersion() > 0)
                 grp.topology().beforeExchange(this, !centralizedAff);
         }
 
@@ -1174,6 +1174,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void sendAllPartitions(Collection<ClusterNode> nodes, Collection<CacheGroupAffinity> cachesAff)
         throws IgniteCheckedException {
+        boolean singleNode = nodes.size() == 1;
+
         GridDhtPartitionsFullMessage msg = createPartitionsMessage(true);
 
         GridDhtPartitionsFullMessage msgWithAff = null;
@@ -1191,13 +1193,17 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             GridDhtPartitionsFullMessage sndMsg = msg;
 
             if (cachesAff != null) {
-                GridDhtPartitionsSingleMessage singleMsg = msgs.get(node.id());
+                if (singleNode)
+                    msg.cachesAffinity(cachesAff);
+                else {
+                    GridDhtPartitionsSingleMessage singleMsg = msgs.get(node.id());
 
-                if (singleMsg != null && singleMsg.cacheGroupsAffinityRequest() != null) {
-                    if (msgWithAff == null)
-                        msgWithAff = msg.copyWithAffinity(cachesAff);
+                    if (singleMsg != null && singleMsg.cacheGroupsAffinityRequest() != null) {
+                        if (msgWithAff == null)
+                            msgWithAff = msg.copyWithAffinity(cachesAff);
 
-                    sndMsg = msgWithAff;
+                        sndMsg = msgWithAff;
+                    }
                 }
             }
 
@@ -1398,11 +1404,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     public void onReceive(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         assert msg != null;
-        assert msg.exchangeId().equals(exchId) : msg;
+        assert exchId.equals(msg.exchangeId()) : msg;
         assert msg.lastVersion() != null : msg;
-
-        if (!msg.client())
-            updateLastVersion(msg.lastVersion());
 
         if (isDone()) {
             if (log.isDebugEnabled())
@@ -1410,9 +1413,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     ", fut=" + this + ']');
 
             if (!centralizedAff)
-                sendAllPartitions(node.id(), cctx.gridConfig().getNetworkSendRetryCount());
+                sendAllPartitions(msg, node.id(), cctx.gridConfig().getNetworkSendRetryCount());
         }
         else {
+            assert !msg.client() : msg;
+
+            updateLastVersion(msg.lastVersion());
+
             initFut.listen(new CI1<IgniteInternalFuture<Boolean>>() {
                 @Override public void apply(IgniteInternalFuture<Boolean> f) {
                     try {
@@ -1704,6 +1711,24 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
     }
 
+    private Map<Integer, CacheGroupAffinity> initCachesAffinity(Collection<Integer> affReq,
+       @Nullable Map<Integer, CacheGroupAffinity> cachesAff) {
+       assert !F.isEmpty(affReq);
+
+        if (cachesAff == null)
+            cachesAff = U.newHashMap(affReq.size());
+
+        for (Integer grpId : affReq) {
+            if (!cachesAff.containsKey(grpId)) {
+                List<List<ClusterNode>> assign = cctx.affinity().affinity(topologyVersion(), grpId);
+
+                cachesAff.put(grpId, new CacheGroupAffinity(grpId, assign));
+            }
+        }
+
+        return cachesAff;
+    }
+
     /**
      *
      */
@@ -1715,8 +1740,17 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             if (!crd.equals(discoCache.serverNodes().get(0))) {
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
-                    if (!grp.isLocal())
+                    if (!grp.isLocal()) {
+                        if (localJoinExchange() && grp.affinity().lastVersion().topologyVersion() == -1L) {
+                            List<List<ClusterNode>> aff = grp.affinity().calculate(topologyVersion(),
+                                    discoEvt,
+                                    discoCache);
+
+                            grp.affinity().initialize(topologyVersion(), aff);
+                        }
+
                         grp.topology().beforeExchange(this, !centralizedAff);
+                    }
                 }
             }
 
@@ -1738,16 +1772,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();
 
-                if (affReq != null) {
-                    if (cachesAff == null)
-                        cachesAff = U.newHashMap(affReq.size());
-
-                    for (Integer grpId : affReq) {
-                        List<List<ClusterNode>> assign = cctx.affinity().affinity(topologyVersion(), grpId);
-
-                        cachesAff.put(grpId, new CacheGroupAffinity(grpId, assign));
-                    }
-                }
+                if (affReq != null)
+                    cachesAff = initCachesAffinity(affReq, cachesAff);
             }
 
             if (discoEvt.type() == EVT_NODE_JOINED)
@@ -1849,15 +1875,27 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * @param msg Request.
      * @param nodeId Node ID.
      * @param retryCnt Number of retries.
      */
-    private void sendAllPartitions(final UUID nodeId, final int retryCnt) {
+    private void sendAllPartitions(final GridDhtPartitionsSingleMessage msg, final UUID nodeId, final int retryCnt) {
         ClusterNode n = cctx.node(nodeId);
 
         try {
-            if (n != null)
-                sendAllPartitions(F.asList(n), null);
+            if (n != null) {
+                Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();
+
+                Collection<CacheGroupAffinity> cachesAff = null;
+
+                if (affReq != null) {
+                    Map<Integer, CacheGroupAffinity> affMap = initCachesAffinity(affReq, null);
+
+                    cachesAff = affMap.values();
+                }
+
+                sendAllPartitions(F.asList(n), cachesAff);
+            }
         }
         catch (IgniteCheckedException e) {
             if (e instanceof ClusterTopologyCheckedException || !cctx.discovery().alive(n)) {
@@ -1882,7 +1920,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 cctx.time().addTimeoutObject(new GridTimeoutObjectAdapter(timeout) {
                     @Override public void onTimeout() {
-                        sendAllPartitions(nodeId, retryCnt - 1);
+                        sendAllPartitions(msg, nodeId, retryCnt - 1);
                     }
                 });
             }
@@ -1994,6 +2032,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                         assignments0.add(assign0);
                     }
+
+                    if (!grp.affinity().centralizedAffinityFunction())
+                        grp.affinity().calculate(topologyVersion(), discoEvt, discoCache);
 
                     grp.affinity().initialize(topologyVersion(), assignments0);
 

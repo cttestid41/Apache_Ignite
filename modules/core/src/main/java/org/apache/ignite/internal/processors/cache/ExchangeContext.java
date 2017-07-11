@@ -33,17 +33,24 @@ public class ExchangeContext {
     private boolean fetchAffOnJoin;
 
     /**
-     * @return {@code True} if on local join need fetch affinity per-group (old protocol),
-     * otherwise affinity is sent in {@link GridDhtPartitionsFullMessage}.
+     * @param protocolVer Protocol version.
      */
-    public boolean fetchAffinityOnJoin() {
-        return false;
+    public ExchangeContext(int protocolVer) {
+        fetchAffOnJoin = protocolVer == 1;
+    }
+
+    /**
+     * @return {@code True} if on local join need fetch affinity per-group (old protocol),
+     *      otherwise affinity is sent in {@link GridDhtPartitionsFullMessage}.
+     */
+    boolean fetchAffinityOnJoin() {
+        return fetchAffOnJoin;
     }
 
     /**
      * @param grpId Cache group ID.
      */
-    public void addGroupAffinityRequestOnJoin(Integer grpId) {
+    void addGroupAffinityRequestOnJoin(Integer grpId) {
         if (requestGrpsAffOnJoin == null)
             requestGrpsAffOnJoin = new HashSet<>();
 

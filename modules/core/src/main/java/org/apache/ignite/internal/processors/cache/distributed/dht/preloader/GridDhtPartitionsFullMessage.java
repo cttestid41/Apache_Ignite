@@ -156,7 +156,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
      * @param cachesAff Affinity.
      * @return Message copy.
      */
-    public GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinity> cachesAff) {
+    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinity> cachesAff) {
         assert !F.isEmpty(cachesAff) : cachesAff;
 
         GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
@@ -171,8 +171,15 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     /**
      * @return Affinity.
      */
-    @Nullable public Collection<CacheGroupAffinity> cachesAffinity() {
+    @Nullable Collection<CacheGroupAffinity> cachesAffinity() {
         return cachesAff;
+    }
+
+    /**
+     * @param cachesAff Affinity.
+     */
+    void cachesAffinity(Collection<CacheGroupAffinity> cachesAff) {
+        this.cachesAff = cachesAff;
     }
 
     /** {@inheritDoc} */

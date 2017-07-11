@@ -1346,8 +1346,17 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     fetchFuts.add(fetchFut);
                 }
-                else
-                    fut.context().addGroupAffinityRequestOnJoin(grp.groupId());
+                else {
+                    if (fut.discoCache().serverNodes().size() > 0)
+                        fut.context().addGroupAffinityRequestOnJoin(grp.groupId());
+                    else {
+                        List<List<ClusterNode>> aff = grp.affinity().calculate(topVer,
+                                fut.discoveryEvent(),
+                                fut.discoCache());
+
+                        grp.affinity().initialize(topVer, aff);
+                    }
+                }
             }
         }
 
