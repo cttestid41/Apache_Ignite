@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,21 +15,36 @@
  * limitations under the License.
  */
 
-namespace Apache.Ignite.Core.Tests.Cache.Query
+namespace Apache.Ignite.Core.Tests.Deployment
 {
-    using Apache.Ignite.Core.Binary;
-    using NUnit.Framework;
+    using Apache.Ignite.Core.Compute;
+    using Apache.Ignite.Core.Resource;
 
     /// <summary>
-    /// LINQ test with simple name mapper.
+    /// Function to get a value from cache.
     /// </summary>
-    [TestFixture]
-    public class CacheLinqTestSimpleName : CacheLinqTest
+    public class CacheGetFunc<TKey, TValue> : IComputeFunc<TValue>
     {
+        /// <summary>
+        /// Gets or sets the cache key.
+        /// </summary>
+        public TKey Key { get; set; }
+
+        /// <summary>
+        /// Gets or sets the name of the cache.
+        /// </summary>
+        public string CacheName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the ignite.
+        /// </summary>
+        [InstanceResource]
+        public IIgnite Ignite { get;set; }
+
         /** <inheritdoc /> */
-        protected override IBinaryNameMapper GetNameMapper()
+        public TValue Invoke()
         {
-            return BinaryBasicNameMapper.SimpleNameInstance;
+            return Ignite.GetCache<TKey, TValue>(CacheName).Get(Key);
         }
     }
 }

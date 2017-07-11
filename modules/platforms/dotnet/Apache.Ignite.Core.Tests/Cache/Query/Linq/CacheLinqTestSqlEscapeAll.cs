@@ -15,18 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.ignite.ml.clustering;
+namespace Apache.Ignite.Core.Tests.Cache.Query.Linq
+{
+    using NUnit.Framework;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-
-/**
- * Test suite for all tests located in org.apache.ignite.ml.clustering package.
- */
-@RunWith(Suite.class)
-@Suite.SuiteClasses({
-        KMeansDistributedClustererTest.class,
-        KMeansLocalClustererTest.class
-})
-public class ClusteringTesetSuite {
+    /// <summary>
+    /// LINQ test with simple name mapper.
+    /// </summary>
+    [TestFixture]
+    public class CacheLinqTestSqlEscapeAll : CacheLinqTest
+    {
+        /** <inheritdoc /> */
+        protected override bool GetSqlEscapeAll()
+        {
+            return true;
+        }
+    }
 }
