@@ -1224,6 +1224,19 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @param topVer Topology version.
+     * @param grpId Cache group ID.
+     * @return Affinity assignments.
+     */
+    public List<List<ClusterNode>> affinity(AffinityTopologyVersion topVer, Integer grpId) {
+        CacheGroupHolder grpHolder = grpHolders.get(grpId);
+
+        assert grpHolder != null : grpId;
+
+        return grpHolder.affinity().assignments(topVer);
+    }
+
+    /**
      * Called on exchange initiated by server node join.
      *
      * @param fut Exchange future.
@@ -1319,18 +1332,22 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                 grp.affinity().initialize(fut.topologyVersion(), assignment);
             }
             else {
-                CacheGroupDescriptor grpDesc = caches.group(grp.groupId());
+                if (fut.context().fetchAffinityOnJoin()) {
+                    CacheGroupDescriptor grpDesc = caches.group(grp.groupId());
 
-                assert grpDesc != null : grp.cacheOrGroupName();
+                    assert grpDesc != null : grp.cacheOrGroupName();
 
-                GridDhtAssignmentFetchFuture fetchFut = new GridDhtAssignmentFetchFuture(cctx,
-                    grpDesc.groupId(),
-                    topVer,
-                    fut.discoCache());
+                    GridDhtAssignmentFetchFuture fetchFut = new GridDhtAssignmentFetchFuture(cctx,
+                        grpDesc.groupId(),
+                        topVer,
+                        fut.discoCache());
 
-                fetchFut.init(false);
+                    fetchFut.init(false);
 
-                fetchFuts.add(fetchFut);
+                    fetchFuts.add(fetchFut);
+                }
+                else
+                    fut.context().addGroupAffinityRequestOnJoin(grp.groupId());
             }
         }
 
