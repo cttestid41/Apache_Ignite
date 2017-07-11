@@ -31,7 +31,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 /**
  *
  */
-public class ExchangeEvents {
+public class ExchangeDiscoveryEvents {
     /** */
     private AffinityTopologyVersion topVer;
 

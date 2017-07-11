@@ -1223,6 +1223,14 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             (affNodes.isEmpty() || (affNodes.size() == 1 && affNodes.contains(cctx.localNode())));
     }
 
+    public List<List<ClusterNode>> affinity(AffinityTopologyVersion topVer, Integer grpId) {
+        CacheGroupHolder grpHolder = grpHolders.get(grpId);
+
+        assert grpHolder != null : grpId;
+
+        return grpHolder.affinity().assignments(topVer);
+    }
+
     /**
      * @param crd Coordinator flag.
      * @throws IgniteCheckedException If failed.
@@ -1231,7 +1239,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
     }
 
-    public void processDiscoveryEvents(ExchangeEvents evts) {
+    public void processDiscoveryEvents(ExchangeDiscoveryEvents evts) {
         AffinityTopologyVersion topVer = evts.topologyVersion();
 
         if (evts.serverLeft()) {
@@ -1301,6 +1309,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             }
         }
     }
+
+
 
     /**
      * @param grpIds Cache group IDs.

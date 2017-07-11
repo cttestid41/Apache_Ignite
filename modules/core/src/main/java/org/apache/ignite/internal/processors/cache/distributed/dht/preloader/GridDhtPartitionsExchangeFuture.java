@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.CacheEvent;
@@ -61,7 +62,8 @@ import org.apache.ignite.internal.processors.cache.CachePartitionExchangeWorkerT
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
 import org.apache.ignite.internal.processors.cache.ExchangeActions;
-import org.apache.ignite.internal.processors.cache.ExchangeEvents;
+import org.apache.ignite.internal.processors.cache.ExchangeContext;
+import org.apache.ignite.internal.processors.cache.ExchangeDiscoveryEvents;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
@@ -401,6 +403,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         return false;
     }
 
+    /** */
+    @GridToStringExclude
+    private ExchangeContext exchCtx;
+
     /**
      *
      */
@@ -426,7 +432,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert discoEvt != null : this;
         assert exchId.nodeId().equals(discoEvt.eventNode().id()) : this;
 
-        boolean allowCoalescing = discoCache.minimumNodeVersion().compareTo(EXCHANGE_COALESCING_SINCE) >= 0;
+        exchCtx = new ExchangeContext(topologyVersion(),
+            discoCache.minimumNodeVersion().compareTo(EXCHANGE_COALESCING_SINCE) >= 0);
 
         try {
             discoCache.updateAlives(cctx.discovery());
@@ -449,7 +456,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 ", customEvt=" + (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT ? ((DiscoveryCustomEvent)discoEvt).customMessage() : null) +
                 ']');
 
-            ExchangeType exchange;
+            ExchangeType exchange = null;
 
             if (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
                 DiscoveryCustomMessage msg = ((DiscoveryCustomEvent)discoEvt).customMessage();
@@ -476,71 +483,88 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
             else {
-                if (discoEvt.type() == EVT_NODE_JOINED) {
-                    if (!discoEvt.eventNode().isLocal()) {
-                        Collection<DynamicCacheDescriptor> receivedCaches = cctx.cache().startReceivedCaches(
-                            discoEvt.eventNode().id(),
-                            topVer);
+                if (exchCtx.coalescing()) {
+                    if (discoEvt.type() == EVT_NODE_JOINED) {
+                        if (discoEvt.eventNode().isLocal()) {
+                            localJoin();
 
-                        cctx.affinity().initStartedCaches(crdNode, this, receivedCaches);
+                            if (crdNode) {
+                                exchange = ExchangeType.NONE;
+                            }
+                            else
+                                sendLocalJoinMessage(crd);
+                        }
+                        else {
+                            if (CU.clientNode(discoEvt.eventNode())) {
+                                onClientNodeEvent(crdNode);
+
+                                exchange = ExchangeType.NONE;
+                            }
+                            else {
+                                if (cctx.kernalContext().clientNode())
+                                    exchange = ExchangeType.CLIENT;
+                                else {
+
+                                }
+                            }
+                        }
                     }
                     else {
-                        cctx.activate();
 
-                        List<T2<DynamicCacheDescriptor, NearCacheConfiguration>> caches =
-                            cctx.cache().cachesToStartOnLocalJoin();
-
-                        if (cctx.database().persistenceEnabled() && !cctx.kernalContext().clientNode()) {
-                            List<DynamicCacheDescriptor> startDescs = new ArrayList<>();
-
-                            if (caches != null) {
-                                for (T2<DynamicCacheDescriptor, NearCacheConfiguration> c : caches)
-                                    startDescs.add(c.get1());
-                            }
-
-                            cctx.database().readCheckpointAndRestoreMemory(startDescs);
-                        }
-
-                        cctx.cache().startCachesOnLocalJoin(caches, topVer);
                     }
                 }
+                else {
+                    if (discoEvt.type() == EVT_NODE_JOINED) {
+                        if (!discoEvt.eventNode().isLocal()) {
+                            Collection<DynamicCacheDescriptor> receivedCaches = cctx.cache().startReceivedCaches(
+                                discoEvt.eventNode().id(),
+                                topVer);
 
-                exchange = CU.clientNode(discoEvt.eventNode()) ?
-                    onClientNodeEvent(crdNode) :
-                    onServerNodeEvent(crdNode);
+                            cctx.affinity().initStartedCaches(crdNode, this, receivedCaches);
+                        }
+                        else
+                            localJoin();
+                    }
+
+                    exchange = CU.clientNode(discoEvt.eventNode()) ?
+                        onClientNodeEvent(crdNode) :
+                        onServerNodeEvent(crdNode);
+                }
             }
 
             updateTopologies(crdNode);
 
-            switch (exchange) {
-                case ALL: {
-                    distributedExchange();
+            if (exchange != null) {
+                switch (exchange) {
+                    case ALL: {
+                        distributedExchange();
 
-                    break;
+                        break;
+                    }
+
+                    case CLIENT: {
+                        initTopologies();
+
+                        clientOnlyExchange();
+
+                        break;
+                    }
+
+                    case NONE: {
+                        initTopologies();
+
+                        onDone(topVer);
+
+                        break;
+                    }
+
+                    default:
+                        assert false;
                 }
 
-                case CLIENT: {
-                    initTopologies();
-
-                    clientOnlyExchange();
-
-                    break;
-                }
-
-                case NONE: {
-                    initTopologies();
-
-                    onDone(topVer);
-
-                    break;
-                }
-
-                default:
-                    assert false;
+                if (cctx.localNode().isClient())
+                    tryToPerformLocalSnapshotOperation();
             }
-
-            if (cctx.localNode().isClient())
-                tryToPerformLocalSnapshotOperation();
 
             exchLog.info("Finished exchange init [topVer=" + topVer + ", crd=" + crdNode + ']');
         }
@@ -564,6 +588,35 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (e instanceof Error)
                 throw (Error)e;
         }
+    }
+
+    private void localJoin() throws IgniteCheckedException {
+        cctx.activate();
+
+        List<T2<DynamicCacheDescriptor, NearCacheConfiguration>> caches =
+            cctx.cache().cachesToStartOnLocalJoin();
+
+        if (caches != null) {
+            for (T2<DynamicCacheDescriptor, NearCacheConfiguration> cache : caches) {
+                DynamicCacheDescriptor desc = cache.get1();
+
+                if (desc.cacheConfiguration().getCacheMode() != CacheMode.LOCAL)
+                    exchCtx.addCacheGroupOnLocalStart(cache.get1().groupId());
+            }
+        }
+
+        if (cctx.database().persistenceEnabled() && !cctx.kernalContext().clientNode()) {
+            List<DynamicCacheDescriptor> startDescs = new ArrayList<>();
+
+            if (caches != null) {
+                for (T2<DynamicCacheDescriptor, NearCacheConfiguration> c : caches)
+                    startDescs.add(c.get1());
+            }
+
+            cctx.database().readCheckpointAndRestoreMemory(startDescs);
+        }
+
+        cctx.cache().startCachesOnLocalJoin(caches, topologyVersion());
     }
 
     /**
@@ -877,11 +930,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         cctx.database().beforeExchange(this);
-
-        ExchangeEvents mergedEvts = null;
-
-        if (crd.isLocal())
-            mergedEvts = cctx.exchange().coalesceExchanges(this);
+//
+//        ExchangeDiscoveryEvents mergedEvts = null;
+//
+//        if (crd.isLocal())
+//            mergedEvts = cctx.exchange().coalesceExchanges(this);
 
         if (crd.isLocal()) {
             if (remaining.isEmpty())
@@ -1102,6 +1155,34 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private boolean cacheStopping(int cacheId) {
         return exchActions != null && exchActions.cacheStopped(cacheId);
+    }
+
+    /**
+     * @param crd Current coordinator node
+     * @throws IgniteCheckedException If failed.
+     */
+    private void sendLocalJoinMessage(ClusterNode crd) throws IgniteCheckedException {
+        assert crd != null;
+
+        GridDhtPartitionsSingleMessage msg = new GridDhtPartitionsSingleMessage(exchangeId(),
+            CU.clientNode(cctx.localNode()),
+            cctx.versions().last(),
+            true);
+
+        msg.cacheGroupsOnJoin(exchCtx.cacheGroupsOnLocalStart());
+
+        if (log.isDebugEnabled()) {
+            log.debug("Sending local partitions on local join [nodeId=" + crd.id() +
+                ", exchId=" + exchId + ", msg=" + msg + ']');
+        }
+
+        try {
+            cctx.io().send(crd, msg, SYSTEM_POOL);
+        }
+        catch (ClusterTopologyCheckedException ignored) {
+            if (log.isDebugEnabled())
+                log.debug("Node left during partition exchange [nodeId=" + crd.id() + ", exchId=" + exchId + ']');
+        }
     }
 
     /**
@@ -1775,21 +1856,34 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            for (GridDhtPartitionsAbstractMessage msg : msgs.values()) {
-                if (msg instanceof GridDhtPartitionsSingleMessage) {
-                    GridDhtPartitionsSingleMessage msg0 = (GridDhtPartitionsSingleMessage)msg;
+            Map<Integer, List<List<ClusterNode>>> affMap = null;
 
-                    for (Map.Entry<Integer, GridDhtPartitionMap> entry : msg0.partitions().entrySet()) {
-                        Integer grpId = entry.getKey();
-                        CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
+            for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : msgs.entrySet()) {
+                GridDhtPartitionsSingleMessage msg = e.getValue();
 
-                        GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                            cctx.exchange().clientTopology(grpId, this);
+                for (Map.Entry<Integer, GridDhtPartitionMap> entry : msg.partitions().entrySet()) {
+                    Integer grpId = entry.getKey();
+                    CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
-                        Map<Integer, T2<Long, Long>> cntrs = msg0.partitionUpdateCounters(grpId);
+                    GridDhtPartitionTopology top = grp != null ? grp.topology() :
+                        cctx.exchange().clientTopology(grpId, this);
 
-                        if (cntrs != null)
-                            top.applyUpdateCounters(cntrs);
+                    Map<Integer, T2<Long, Long>> cntrs = msg.partitionUpdateCounters(grpId);
+
+                    if (cntrs != null)
+                        top.applyUpdateCounters(cntrs);
+                }
+
+                Collection<Integer> grpsOnJoin = msg.cacheGroupsOnJoin();
+
+                if (grpsOnJoin != null) {
+                    if (affMap == null)
+                        affMap = new HashMap<>();
+
+                    for (Integer grpId : grpsOnJoin) {
+                        if (!affMap.containsKey(grpId)) {
+                            //cctx.affinity().affinity()
+                        }
                     }
                 }
             }

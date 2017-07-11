@@ -1738,8 +1738,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         this.coalesceTestWaitVer = coalesceTestWaitVer;
     }
 
-    public ExchangeEvents coalesceExchanges(GridDhtPartitionsExchangeFuture curFut) {
-        ExchangeEvents evts = null;
+    public ExchangeDiscoveryEvents coalesceExchanges(GridDhtPartitionsExchangeFuture curFut) {
+        ExchangeDiscoveryEvents evts = null;
 
         AffinityTopologyVersion coalesceTestWaitVer = this.coalesceTestWaitVer;
 
@@ -1796,7 +1796,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     fut.mergeWithFuture(curFut);
 
                     if (evts == null)
-                        evts = new ExchangeEvents();
+                        evts = new ExchangeDiscoveryEvents();
 
                     evts.init(fut);
 

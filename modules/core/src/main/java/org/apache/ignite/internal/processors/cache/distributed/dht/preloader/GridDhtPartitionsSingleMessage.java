@@ -17,12 +17,14 @@
 
 package org.apache.ignite.internal.processors.cache.distributed.dht.preloader;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.io.Externalizable;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectMap;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
@@ -88,6 +90,10 @@ public class GridDhtPartitionsSingleMessage extends GridDhtPartitionsAbstractMes
     @GridDirectTransient
     private transient boolean compress;
 
+    /** */
+    @GridDirectCollection(Integer.class)
+    private Collection<Integer> cacheGrpsOnJoin;
+
     /**
      * Required by {@link Externalizable}.
      */
@@ -109,6 +115,14 @@ public class GridDhtPartitionsSingleMessage extends GridDhtPartitionsAbstractMes
 
         this.client = client;
         this.compress = compress;
+    }
+
+    public void cacheGroupsOnJoin(Collection<Integer> cacheGrpsOnJoin) {
+        this.cacheGrpsOnJoin = cacheGrpsOnJoin;
+    }
+
+    @Nullable public Collection<Integer> cacheGroupsOnJoin() {
+        return cacheGrpsOnJoin;
     }
 
     /** {@inheritDoc} */
