@@ -1259,6 +1259,29 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @param crd Coordinator flag.
+     * @throws IgniteCheckedException If failed.
+     */
+    public void onLocalJoin(boolean crd) throws IgniteCheckedException {
+
+    }
+
+    public void processDiscoveryEvents(ExchangeEvents evts) {
+        AffinityTopologyVersion topVer = evts.topologyVersion();
+
+        if (evts.serverLeft()) {
+
+        }
+        else if (evts.serverJoin()) {
+
+        }
+        else {
+
+        }
+    }
+
+
+    /**
      * Called on exchange initiated by server node join.
      *
      * @param fut Exchange future.

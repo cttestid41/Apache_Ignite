@@ -1728,14 +1728,55 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         return node.version().compareToIgnoreTimestamp(EXCHANGE_COALESCING_SINCE) >= 0;
     }
 
-    public ExchangeEvents checkExchangeCoalescing(GridDhtPartitionsExchangeFuture curFut) {
+    /** */
+    private volatile AffinityTopologyVersion coalesceTestWaitVer;
+
+    /**
+     * @param coalesceTestWaitVer
+     */
+    public void coalesceTestWaitVersion(AffinityTopologyVersion coalesceTestWaitVer) {
+        this.coalesceTestWaitVer = coalesceTestWaitVer;
+    }
+
+    public ExchangeEvents coalesceExchanges(GridDhtPartitionsExchangeFuture curFut) {
         ExchangeEvents evts = null;
 
-        try {
-            U.sleep(1000);
-        }
-        catch (Exception e) {
-            e.printStackTrace();
+        AffinityTopologyVersion coalesceTestWaitVer = this.coalesceTestWaitVer;
+
+        if (coalesceTestWaitVer != null) {
+            log.info("Coalesce test, waiting for version [exch=" + curFut.topologyVersion() +
+                ", waitVer=" + coalesceTestWaitVer + ']');
+
+            long end = U.currentTimeMillis() + 10_000;
+
+            while (U.currentTimeMillis() < end) {
+                boolean found = false;
+
+                for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
+                    if (task instanceof GridDhtPartitionsExchangeFuture) {
+                        GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
+
+                        if (coalesceTestWaitVer.equals(fut.topologyVersion())) {
+                            log.info("Coalesce test, found awaited version: " + coalesceTestWaitVer);
+
+                            found = true;
+
+                            break;
+                        }
+                    }
+                }
+
+                if (found)
+                    break;
+                else {
+                    try {
+                        U.sleep(100);
+                    }
+                    catch (IgniteInterruptedCheckedException e) {
+                        break;
+                    }
+                }
+            }
         }
 
         for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
@@ -1758,6 +1799,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                         evts = new ExchangeEvents();
 
                     evts.init(fut);
+
+                    exchWorker.futQ.remove(fut);
                 }
                 else
                     break;

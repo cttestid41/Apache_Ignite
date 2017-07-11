@@ -20,7 +20,9 @@ package org.apache.ignite.internal.processors.cache.distributed;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
@@ -52,7 +54,9 @@ public class CacheExchangeCoalescingTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testConcurrentJoin1() throws Exception {
-        startGrid(0);
+        IgniteEx srv0 = startGrid(0);
+
+        srv0.context().cache().context().exchange().coalesceTestWaitVersion(new AffinityTopologyVersion(3, 0));
 
         final AtomicInteger idx = new AtomicInteger(1);
 

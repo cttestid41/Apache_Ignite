@@ -102,7 +102,7 @@ import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.SYSTEM_POOL;
-import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.*;
+import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.EXCHANGE_COALESCING_SINCE;
 
 /**
  * Future for exchanging partition maps.
@@ -881,7 +881,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         ExchangeEvents mergedEvts = null;
 
         if (crd.isLocal())
-            mergedEvts = cctx.exchange().checkExchangeCoalescing(this);
+            mergedEvts = cctx.exchange().coalesceExchanges(this);
 
         if (crd.isLocal()) {
             if (remaining.isEmpty())
@@ -1379,6 +1379,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
     public void mergeWithFuture(final GridDhtPartitionsExchangeFuture fut) {
+        log.info("Merge exchange future [fut=" + topologyVersion() + ", mergeWith=" + fut.topologyVersion() + ']');
+
         List<T2<ClusterNode, GridDhtPartitionsSingleMessage>> pendingMsgs = null;
 
         synchronized (this) {
@@ -1447,17 +1449,23 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 sendAllPartitions(node.id(), cctx.gridConfig().getNetworkSendRetryCount());
         }
         else {
+            GridDhtPartitionsExchangeFuture mergedWith0 = null;
+
             synchronized (this) {
-                if (mergedWith != null) {
-                    mergedWith.onReceive(node, msg);
+                if (mergedWith != null)
+                    mergedWith0 = mergedWith;
+                else {
+                    if (pendingMsgs == null)
+                        pendingMsgs = new ArrayList<>();
 
-                    return;
+                    pendingMsgs.add(new T2<>(node, msg));
                 }
+            }
 
-                if (pendingMsgs == null)
-                    pendingMsgs = new ArrayList<>();
+            if (mergedWith0 != null) {
+                mergedWith0.onReceive(node, msg);
 
-                pendingMsgs.add(new T2<>(node, msg));
+                return;
             }
 
             initFut.listen(new CI1<IgniteInternalFuture<Boolean>>() {
