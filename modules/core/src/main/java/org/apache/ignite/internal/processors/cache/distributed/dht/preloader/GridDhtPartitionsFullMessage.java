@@ -33,7 +33,6 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
-import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
@@ -104,8 +103,8 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     private transient boolean compress;
 
     /** */
-    @GridDirectCollection(CacheGroupAffinity.class)
-    private Collection<CacheGroupAffinity> cachesAff;
+    @GridDirectCollection(CacheGroupAffinityMessage.class)
+    private Collection<CacheGroupAffinityMessage> cachesAff;
 
     /**
      * Required by {@link Externalizable}.
@@ -156,7 +155,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
      * @param cachesAff Affinity.
      * @return Message copy.
      */
-    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinity> cachesAff) {
+    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
         assert !F.isEmpty(cachesAff) : cachesAff;
 
         GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
@@ -171,14 +170,14 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     /**
      * @return Affinity.
      */
-    @Nullable Collection<CacheGroupAffinity> cachesAffinity() {
+    @Nullable Collection<CacheGroupAffinityMessage> cachesAffinity() {
         return cachesAff;
     }
 
     /**
      * @param cachesAff Affinity.
      */
-    void cachesAffinity(Collection<CacheGroupAffinity> cachesAff) {
+    void cachesAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
         this.cachesAff = cachesAff;
     }
 

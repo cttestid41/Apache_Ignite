@@ -1460,6 +1460,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
     /**
      * @param fut Exchange future.
+     * @param newAff {@code True} if there are no older nodes with affinity info available.
      * @throws IgniteCheckedException If failed.
      * @return Future completed when caches initialization is done.
      */

@@ -19,19 +19,28 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.preloader;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridDirectCollection;
+import org.apache.ignite.internal.managers.discovery.DiscoCache;
+import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.util.GridLongList;
+import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.plugin.extensions.communication.MessageCollectionItemType;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
 import org.apache.ignite.plugin.extensions.communication.MessageWriter;
+import org.jetbrains.annotations.Nullable;
 
 /**
  *
  */
-public class CacheGroupAffinity implements Message {
+public class CacheGroupAffinityMessage implements Message {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -40,12 +49,12 @@ public class CacheGroupAffinity implements Message {
 
     /** */
     @GridDirectCollection(GridLongList.class)
-    private List<GridLongList> assign;
+    private List<GridLongList> assigns;
 
     /**
      *
      */
-    public CacheGroupAffinity() {
+    public CacheGroupAffinityMessage() {
         // No-op.
     }
 
@@ -53,10 +62,10 @@ public class CacheGroupAffinity implements Message {
      * @param grpId Group ID.
      * @param assign0 Assignment.
      */
-    CacheGroupAffinity(int grpId, List<List<ClusterNode>> assign0) {
+    private CacheGroupAffinityMessage(int grpId, List<List<ClusterNode>> assign0) {
         this.grpId = grpId;
 
-        assign = new ArrayList<>(assign0.size());
+        assigns = new ArrayList<>(assign0.size());
 
         for (int i = 0; i < assign0.size(); i++) {
             List<ClusterNode> nodes = assign0.get(i);
@@ -66,7 +75,7 @@ public class CacheGroupAffinity implements Message {
             for (int n = 0; n < nodes.size(); n++)
                 l.add(nodes.get(n).order());
 
-            assign.add(l);
+            assigns.add(l);
         }
     }
 
@@ -78,11 +87,67 @@ public class CacheGroupAffinity implements Message {
     }
 
     /**
+     * @param cctx Context.
+     * @param topVer Topology version.
+     * @param affReq Cache group IDs.
+     * @param cachesAff Optional already prepared affinity.
+     * @return Affinity.
+     */
+    static Map<Integer, CacheGroupAffinityMessage> createAffinityMessages(
+        GridCacheSharedContext cctx,
+        AffinityTopologyVersion topVer,
+        Collection<Integer> affReq,
+        @Nullable Map<Integer, CacheGroupAffinityMessage> cachesAff) {
+        assert !F.isEmpty(affReq);
+
+        if (cachesAff == null)
+            cachesAff = U.newHashMap(affReq.size());
+
+        for (Integer grpId : affReq) {
+            if (!cachesAff.containsKey(grpId)) {
+                List<List<ClusterNode>> assign = cctx.affinity().affinity(grpId).assignments(topVer);
+
+                cachesAff.put(grpId, new CacheGroupAffinityMessage(grpId, assign));
+            }
+        }
+
+        return cachesAff;
+    }
+
+    /**
+     * @param nodesByOrder Nodes by order cache.
+     * @param discoCache Discovery data cache.
      * @return Assignments.
      */
-    List<GridLongList> assignments() {
-        return assign;
+    List<List<ClusterNode>> createAssignments(Map<Long, ClusterNode> nodesByOrder, DiscoCache discoCache) {
+        List<List<ClusterNode>> assignments0 = new ArrayList<>(assigns.size());
+
+        for (int p = 0; p < assigns.size(); p++) {
+            GridLongList assign = assigns.get(p);
+            List<ClusterNode> assign0 = new ArrayList<>(assign.size());
+
+            for (int n = 0; n < assign.size(); n++) {
+                long order = assign.get(n);
+
+                ClusterNode affNode = nodesByOrder.get(order);
+
+                if (affNode == null) {
+                    affNode = discoCache.serverNodeByOrder(order);
+
+                    assert affNode != null : order;
+
+                    nodesByOrder.put(order, affNode);
+                }
+
+                assign0.add(affNode);
+            }
+
+            assignments0.add(assign0);
+        }
+
+        return assignments0;
     }
+
 
     /** {@inheritDoc} */
     @Override public boolean writeTo(ByteBuffer buf, MessageWriter writer) {
@@ -97,7 +162,7 @@ public class CacheGroupAffinity implements Message {
 
         switch (writer.state()) {
             case 0:
-                if (!writer.writeCollection("assign", assign, MessageCollectionItemType.MSG))
+                if (!writer.writeCollection("assigns", assigns, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
@@ -122,7 +187,7 @@ public class CacheGroupAffinity implements Message {
 
         switch (reader.state()) {
             case 0:
-                assign = reader.readCollection("assign", MessageCollectionItemType.MSG);
+                assigns = reader.readCollection("assigns", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
                     return false;
@@ -139,7 +204,7 @@ public class CacheGroupAffinity implements Message {
 
         }
 
-        return reader.afterMessageRead(CacheGroupAffinity.class);
+        return reader.afterMessageRead(CacheGroupAffinityMessage.class);
     }
 
     /** {@inheritDoc} */
@@ -155,5 +220,10 @@ public class CacheGroupAffinity implements Message {
     /** {@inheritDoc} */
     @Override public void onAckReceived() {
         // No-op.
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(CacheGroupAffinityMessage.class, this);
     }
 }

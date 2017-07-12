@@ -77,7 +77,6 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateFinishMessage;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateMessage;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObjectAdapter;
-import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.GridPartitionStateMap;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -1183,7 +1182,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param cachesAff Affinity if was requested by some nodes.
      * @throws IgniteCheckedException If failed.
      */
-    private void sendAllPartitions(Collection<ClusterNode> nodes, Collection<CacheGroupAffinity> cachesAff)
+    private void sendAllPartitions(Collection<ClusterNode> nodes, Collection<CacheGroupAffinityMessage> cachesAff)
         throws IgniteCheckedException {
         boolean singleNode = nodes.size() == 1;
 
@@ -1443,7 +1442,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         return;
                     }
 
-                    processMessage(node.id(), msg);
+                    processSingleMessage(node.id(), msg);
                 }
             });
         }
@@ -1453,7 +1452,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param nodeId Sender node.
      * @param msg Message.
      */
-    private void processMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
+    private void processSingleMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
         boolean allReceived = false;
         boolean updateSingleMap = false;
 
@@ -1723,29 +1722,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     * @param affReq Cache group IDs.
-     * @param cachesAff Optional already prepared affinity.
-     * @return Affinity.
-     */
-    private Map<Integer, CacheGroupAffinity> initCachesAffinity(Collection<Integer> affReq,
-       @Nullable Map<Integer, CacheGroupAffinity> cachesAff) {
-       assert !F.isEmpty(affReq);
-
-        if (cachesAff == null)
-            cachesAff = U.newHashMap(affReq.size());
-
-        for (Integer grpId : affReq) {
-            if (!cachesAff.containsKey(grpId)) {
-                List<List<ClusterNode>> assign = cctx.affinity().affinity(grpId).assignments(topologyVersion());
-
-                cachesAff.put(grpId, new CacheGroupAffinity(grpId, assign));
-            }
-        }
-
-        return cachesAff;
-    }
-
-    /**
      *
      */
     private void onAllReceived() {
@@ -1761,7 +1737,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            Map<Integer, CacheGroupAffinity> cachesAff = null;
+            Map<Integer, CacheGroupAffinityMessage> cachesAff = null;
 
             for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : msgs.entrySet()) {
                 GridDhtPartitionsSingleMessage msg = e.getValue();
@@ -1784,7 +1760,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();
 
                 if (affReq != null) {
-                    cachesAff = initCachesAffinity(affReq, cachesAff);
+                    cachesAff = CacheGroupAffinityMessage.createAffinityMessages(cctx,
+                        topologyVersion(),
+                        affReq,
+                        cachesAff);
 
                     UUID nodeId = e.getKey();
 
@@ -1930,10 +1909,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (n != null) {
                 Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();
 
-                Collection<CacheGroupAffinity> cachesAff = null;
+                Collection<CacheGroupAffinityMessage> cachesAff = null;
 
                 if (affReq != null) {
-                    Map<Integer, CacheGroupAffinity> affMap = initCachesAffinity(affReq, null);
+                    Map<Integer, CacheGroupAffinityMessage> affMap = CacheGroupAffinityMessage.createAffinityMessages(
+                        cctx,
+                        msg.exchangeId().topologyVersion(),
+                        affReq,
+                        null);
 
                     cachesAff = affMap.values();
                 }
@@ -2004,7 +1987,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     return;
                 }
 
-                processMessage(node, msg);
+                processFullMessage(node, msg);
             }
         });
     }
@@ -2038,7 +2021,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param node Sender node.
      * @param msg Message.
      */
-    private void processMessage(ClusterNode node, GridDhtPartitionsFullMessage msg) {
+    private void processFullMessage(ClusterNode node, GridDhtPartitionsFullMessage msg) {
         assert exchId.equals(msg.exchangeId()) : msg;
         assert msg.lastVersion() != null : msg;
 
@@ -2065,50 +2048,27 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (localJoinExchange() && affReq != null) {
             Map<Long, ClusterNode> nodesByOrder = new HashMap<>();
 
-            Collection<CacheGroupAffinity> cachesAff = msg.cachesAffinity();
+            Collection<CacheGroupAffinityMessage> cachesAff = msg.cachesAffinity();
 
             assert !F.isEmpty(cachesAff) : msg;
             assert cachesAff.size() >= affReq.size();
 
             int cnt = 0;
 
-            for (CacheGroupAffinity aff : cachesAff) {
+            for (CacheGroupAffinityMessage aff : cachesAff) {
                 if (affReq.contains(aff.groupId())) {
                     CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
 
                     assert grp != null : aff.groupId();
                     assert AffinityTopologyVersion.NONE.equals(grp.affinity().lastVersion());
 
-                    List<GridLongList> assignments = aff.assignments();
-                    List<List<ClusterNode>> assignments0 = new ArrayList<>(assignments.size());
+                    List<List<ClusterNode>> assignments = aff.createAssignments(nodesByOrder, discoCache);
 
-                    for (int p = 0; p < assignments.size(); p++) {
-                        GridLongList assign = assignments.get(p);
-                        List<ClusterNode> assign0 = new ArrayList<>(assign.size());
-
-                        for (int n = 0; n < assign.size(); n++) {
-                            long order = assign.get(n);
-
-                            ClusterNode affNode = nodesByOrder.get(order);
-
-                            if (affNode == null) {
-                                affNode = discoCache.serverNodeByOrder(order);
-
-                                assert affNode != null : order;
-
-                                nodesByOrder.put(order, affNode);
-                            }
-
-                            assign0.add(affNode);
-                        }
-
-                        assignments0.add(assign0);
-                    }
-
+                    // Calculate ideal assignments.
                     if (!grp.affinity().centralizedAffinityFunction())
                         grp.affinity().calculate(topologyVersion(), discoEvt, discoCache);
 
-                    grp.affinity().initialize(topologyVersion(), assignments0);
+                    grp.affinity().initialize(topologyVersion(), assignments);
 
                     try {
                         grp.topology().initPartitions(this);
@@ -2309,7 +2269,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     try {
                         boolean crdChanged = false;
                         boolean allReceived = false;
-                        Set<UUID> remaining0 = null;
 
                         ClusterNode crd0;
 
@@ -2328,9 +2287,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             }
 
                             if (crd != null && crd.isLocal()) {
-                                if (crdChanged)
-                                    remaining0 = new HashSet<>(remaining);
-                                else if (crdReady && rmvd)
+                                if (!crdChanged && crdReady && rmvd)
                                     allReceived = remaining.isEmpty();
                             }
 
@@ -2390,7 +2347,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                 sendPartitions(crd0);
 
                                 for (Map.Entry<ClusterNode, GridDhtPartitionsFullMessage> m : fullMsgs.entrySet())
-                                    processMessage(m.getKey(), m.getValue());
+                                    processFullMessage(m.getKey(), m.getValue());
                             }
                         }
                     }
@@ -2447,7 +2404,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             }
 
             for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> m : singleMsgs.entrySet())
-                processMessage(m.getKey(), m.getValue());
+                processSingleMessage(m.getKey(), m.getValue());
         }
         else {
             awaitSingleMapUpdates();
