@@ -1224,16 +1224,15 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
-     * @param topVer Topology version.
      * @param grpId Cache group ID.
      * @return Affinity assignments.
      */
-    public List<List<ClusterNode>> affinity(AffinityTopologyVersion topVer, Integer grpId) {
+    public GridAffinityAssignmentCache affinity(Integer grpId) {
         CacheGroupHolder grpHolder = grpHolders.get(grpId);
 
         assert grpHolder != null : grpId;
 
-        return grpHolder.affinity().assignments(topVer);
+        return grpHolder.affinity();
     }
 
     /**
