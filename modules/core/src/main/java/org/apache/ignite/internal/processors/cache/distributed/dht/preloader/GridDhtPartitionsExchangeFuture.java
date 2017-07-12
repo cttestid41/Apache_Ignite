@@ -2002,9 +2002,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             int cnt = 0;
 
             for (CacheGroupAffinity aff : cachesAff) {
-                CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
+                if (affReq.contains(aff.groupId())) {
+                    CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
 
-                if (grp != null) {
+                    assert grp != null : aff.groupId();
                     assert AffinityTopologyVersion.NONE.equals(grp.affinity().lastVersion());
 
                     List<GridLongList> assignments = aff.assignments();
