@@ -37,6 +37,7 @@ import javax.cache.processor.EntryProcessor;
 import javax.cache.processor.MutableEntry;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteServices;
 import org.apache.ignite.IgniteTransactions;
@@ -1888,6 +1889,29 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
         updateFut.get();
 
         assertFalse("Unexpected messages.", fail.get());
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStreamer1() throws Exception {
+        cacheC = new IgniteClosure<String, CacheConfiguration[]>() {
+            @Override public CacheConfiguration[] apply(String s) {
+                return null;
+            }
+        };
+
+        startServer(0, 1);
+
+        cacheC = null;
+        cacheNodeFilter = new CacheNodeFilter(Collections.singletonList(getTestIgniteInstanceName(0)));
+
+        startServer(1, 2);
+
+        IgniteDataStreamer<Object, Object> streamer = ignite(0).dataStreamer(CACHE_NAME1);
+
+        streamer.addData(1, 1);
+        streamer.flush();
     }
 
     /**

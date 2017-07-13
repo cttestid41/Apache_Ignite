@@ -1123,9 +1123,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 resetLostPartitions(caches);
         }
 
-        if (cctx.kernalContext().clientNode() || (localJoinExchange() && !cctx.database().persistenceEnabled())) {
+        if (cctx.kernalContext().clientNode()) {
             msg = new GridDhtPartitionsSingleMessage(exchangeId(),
-                cctx.kernalContext().clientNode(),
+                true,
                 cctx.versions().last(),
                 true);
         }
