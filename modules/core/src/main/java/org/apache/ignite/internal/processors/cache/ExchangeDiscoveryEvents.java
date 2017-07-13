@@ -17,13 +17,19 @@
 
 package org.apache.ignite.internal.processors.cache;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 
+import static com.sun.corba.se.impl.util.RepositoryId.cache;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
@@ -39,6 +45,12 @@ public class ExchangeDiscoveryEvents {
     private DiscoCache discoCache;
 
     /** */
+    private DiscoveryEvent evt;
+
+    /** */
+    private List<DiscoveryEvent> evts = new ArrayList<>();
+
+    /** */
     private boolean srvJoin;
 
     /** */
@@ -47,23 +59,45 @@ public class ExchangeDiscoveryEvents {
     /**
      * @param fut Future.
      */
-    void init(GridDhtPartitionsExchangeFuture fut) {
-        topVer = fut.topologyVersion();
-        discoCache = fut.discoCache();
+    ExchangeDiscoveryEvents(GridDhtPartitionsExchangeFuture fut) {
+        addEvent(fut.topologyVersion(), fut.discoveryEvent(), fut.discoCache());
+    }
 
-        ClusterNode node = fut.discoveryEvent().eventNode();
+    boolean groupAddedOnExchange(int grpId, UUID rcvdFrom) {
+        for (DiscoveryEvent evt : evts) {
+            if (evt.type() == EVT_NODE_JOINED && rcvdFrom.equals(evt.eventNode().id()))
+                return true;
+        }
 
-        if (fut.discoveryEvent().type()== EVT_NODE_JOINED)
-            srvJoin = !CU.clientNode(node);
-        else {
-            assert fut.discoveryEvent().type() == EVT_NODE_LEFT || fut.discoveryEvent().type() == EVT_NODE_FAILED;
+        return false;
+    }
 
-            srvLeft = !CU.clientNode(node);
+    void addEvent(AffinityTopologyVersion topVer, DiscoveryEvent evt, DiscoCache cache) {
+        evts.add(evt);
+
+        this.topVer = topVer;
+        this.evt = evt;
+        this.discoCache = cache;
+
+        ClusterNode node = evt.eventNode();
+
+        if (!CU.clientNode(node)) {
+            if (evt.type()== EVT_NODE_JOINED)
+                srvJoin = true;
+            else {
+                assert evt.type() == EVT_NODE_LEFT || evt.type() == EVT_NODE_FAILED;
+
+                srvLeft = !CU.clientNode(node);
+            }
         }
     }
 
     DiscoCache discoveryCache() {
         return discoCache;
+    }
+
+    DiscoveryEvent event() {
+        return evt;
     }
 
     AffinityTopologyVersion topologyVersion() {

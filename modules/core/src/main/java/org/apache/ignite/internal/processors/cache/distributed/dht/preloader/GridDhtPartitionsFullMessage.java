@@ -154,6 +154,10 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         cp.cachesAff = cachesAff;
     }
 
+    AffinityTopologyVersion resultTopologyVersion() {
+        return resTopVer;
+    }
+
     /**
      * @param cachesAff Affinity.
      * @return Message copy.

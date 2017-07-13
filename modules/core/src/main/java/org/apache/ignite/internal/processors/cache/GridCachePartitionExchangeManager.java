@@ -1738,28 +1738,28 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             ((IgniteDiagnosticAware)fut).addDiagnosticRequest(ctx);
     }
 
-    private boolean supportsCoalescing(ClusterNode node) {
+    private boolean supportsMergeExchanges(ClusterNode node) {
         return exchangeProtocolVersion(node.version()) > 1;
     }
 
     /** */
-    private volatile AffinityTopologyVersion coalesceTestWaitVer;
+    private volatile AffinityTopologyVersion exchMergeTestWaitVer;
 
     /**
-     * @param coalesceTestWaitVer
+     * For testing only.
+     *
+     * @param exchMergeTestWaitVer Version to wait for.
      */
-    public void coalesceTestWaitVersion(AffinityTopologyVersion coalesceTestWaitVer) {
-        this.coalesceTestWaitVer = coalesceTestWaitVer;
+    public void mergeExchangesTestWaitVersion(AffinityTopologyVersion exchMergeTestWaitVer) {
+        this.exchMergeTestWaitVer = exchMergeTestWaitVer;
     }
 
-    public ExchangeDiscoveryEvents coalesceExchanges(GridDhtPartitionsExchangeFuture curFut) {
-        ExchangeDiscoveryEvents evts = null;
+    public boolean mergeExchanges(GridDhtPartitionsExchangeFuture curFut) {
+        AffinityTopologyVersion exchMergeTestWaitVer = this.exchMergeTestWaitVer;
 
-        AffinityTopologyVersion coalesceTestWaitVer = this.coalesceTestWaitVer;
-
-        if (coalesceTestWaitVer != null) {
+        if (exchMergeTestWaitVer != null) {
             log.info("Coalesce test, waiting for version [exch=" + curFut.topologyVersion() +
-                ", waitVer=" + coalesceTestWaitVer + ']');
+                ", waitVer=" + exchMergeTestWaitVer + ']');
 
             long end = U.currentTimeMillis() + 10_000;
 
@@ -1770,8 +1770,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     if (task instanceof GridDhtPartitionsExchangeFuture) {
                         GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
 
-                        if (coalesceTestWaitVer.equals(fut.topologyVersion())) {
-                            log.info("Coalesce test, found awaited version: " + coalesceTestWaitVer);
+                        if (exchMergeTestWaitVer.equals(fut.topologyVersion())) {
+                            log.info("Coalesce test, found awaited version: " + exchMergeTestWaitVer);
 
                             found = true;
 
@@ -1793,40 +1793,31 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             }
         }
 
-        for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
-            if (task instanceof GridDhtPartitionsExchangeFuture) {
-                GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
+        synchronized (curFut) {
+            int awaited = 0;
 
-                int evtType = fut.discoveryEvent().type();
+            for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
+                if (task instanceof GridDhtPartitionsExchangeFuture) {
+                    GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
 
-                if (evtType == EVT_NODE_JOINED) {
                     DiscoveryEvent evt = fut.discoveryEvent();
 
                     ClusterNode node = evt.eventNode();
 
-                    if (!supportsCoalescing(node))
+                    if (!supportsMergeExchanges(node))
                         break;
 
-                    fut.mergeWithFuture(curFut);
-
-                    if (evts == null)
-                        evts = new ExchangeDiscoveryEvents();
-
-                    evts.init(fut);
+                    if (evt.type() == EVT_NODE_JOINED && !CU.clientNode(node))
+                        fut.mergeServerJoinExchange(curFut);
 
                     exchWorker.futQ.remove(fut);
                 }
                 else
                     break;
-//                else if (evtType == EVT_NODE_LEFT || evtType == EVT_NODE_FAILED) {
-//
-//                }
             }
-            else
-                break;
-        }
 
-        return evts;
+            return awaited == 0;
+        }
     }
 
     /**

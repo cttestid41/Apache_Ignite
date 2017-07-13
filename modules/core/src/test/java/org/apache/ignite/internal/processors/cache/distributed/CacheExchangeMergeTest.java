@@ -32,7 +32,7 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 /**
  *
  */
-public class CacheExchangeCoalescingTest extends GridCommonAbstractTest {
+public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /** */
     private static TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
 
@@ -56,7 +56,7 @@ public class CacheExchangeCoalescingTest extends GridCommonAbstractTest {
     public void testConcurrentJoin1() throws Exception {
         IgniteEx srv0 = startGrid(0);
 
-        srv0.context().cache().context().exchange().coalesceTestWaitVersion(new AffinityTopologyVersion(3, 0));
+        srv0.context().cache().context().exchange().mergeExchangesTestWaitVersion(new AffinityTopologyVersion(3, 0));
 
         final AtomicInteger idx = new AtomicInteger(1);
 

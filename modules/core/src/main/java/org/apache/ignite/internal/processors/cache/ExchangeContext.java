@@ -17,14 +17,9 @@
 
 package org.apache.ignite.internal.processors.cache;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import org.apache.ignite.cluster.ClusterNode;
-import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
-import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,24 +34,25 @@ public class ExchangeContext {
     private boolean fetchAffOnJoin;
 
     /** */
-    private final boolean coalescing;
+    private final boolean merge;
 
     /** */
-    private AffinityTopologyVersion resTopVer;
-
-    /** */
-    private final Map<Integer, List<List<ClusterNode>>> affMap = new HashMap<>();
+    private final ExchangeDiscoveryEvents evts;
 
     /**
      * @param protocolVer Protocol version.
-     * @param topVer Topology version.
+     * @param fut Exchange future.
      */
-    public ExchangeContext(int protocolVer, AffinityTopologyVersion topVer) {
+    public ExchangeContext(int protocolVer, GridDhtPartitionsExchangeFuture fut) {
         fetchAffOnJoin = protocolVer == 1;
 
-        coalescing = protocolVer > 1;
+        merge = protocolVer > 1;
 
-        this.resTopVer = topVer;
+        evts = new ExchangeDiscoveryEvents(fut);
+    }
+
+    public ExchangeDiscoveryEvents events() {
+        return evts;
     }
 
     /**
@@ -84,27 +80,7 @@ public class ExchangeContext {
         return requestGrpsAffOnJoin;
     }
 
-    public boolean coalescing() {
-        return coalescing;
-    }
-
-    public List<List<ClusterNode>> activeAffinity(GridCacheSharedContext cctx, GridAffinityAssignmentCache aff) {
-        List<List<ClusterNode>> assignment = affMap.get(aff.groupId());
-
-        if (assignment != null)
-            return assignment;
-
-        AffinityTopologyVersion affTopVer = aff.lastVersion();
-
-        assert affTopVer.topologyVersion() > 0 : "Affinity is not initialized [grp=" + aff.cacheOrGroupName() +
-            ", topVer=" + affTopVer + ", node=" + cctx.localNodeId() + ']';
-
-        List<List<ClusterNode>> curAff = aff.assignments(affTopVer);
-
-        assert aff.idealAssignment() != null : "Previous assignment is not available.";
-
-        affMap.put(aff.groupId(), curAff);
-
-        return curAff;
+    public boolean canMergeExchanges() {
+        return merge;
     }
 }
