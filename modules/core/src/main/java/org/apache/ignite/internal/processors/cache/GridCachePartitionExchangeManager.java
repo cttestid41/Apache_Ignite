@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -1438,19 +1439,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             return;
 
         try {
-            List<GridDhtPartitionsExchangeFuture> futs = exchangeFutures();
-
-            GridDhtPartitionsExchangeFuture fut = null;
-
-            for (int i = futs.size() - 1; i >= 0; i++) {
-                GridDhtPartitionsExchangeFuture fut0 = futs.get(i);
-
-                if (fut0.exchangeId().equals(msg.exchangeId())) {
-                    fut = fut0;
-
-                    break;
-                }
-            }
+            GridDhtPartitionsExchangeFuture fut = exchFuts.find(msg.exchangeId());
 
             if (fut != null)
                 fut.processSinglePartitionRequest(node, msg);
@@ -2264,6 +2253,23 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
          */
         @Override public synchronized List<GridDhtPartitionsExchangeFuture> values() {
             return super.values();
+        }
+
+        /**
+         * @param exchangeId Exchange ID.
+         * @return Future.
+         */
+        public synchronized GridDhtPartitionsExchangeFuture find(GridDhtPartitionExchangeId exchangeId) {
+            ListIterator<GridDhtPartitionsExchangeFuture> it = listIterator(size() - 1);
+
+            while (it.hasPrevious()) {
+                GridDhtPartitionsExchangeFuture fut0 = it.previous();
+
+                if (fut0.exchangeId().equals(exchangeId))
+                    return fut0;
+            }
+
+            return null;
         }
 
         /** {@inheritDoc} */
