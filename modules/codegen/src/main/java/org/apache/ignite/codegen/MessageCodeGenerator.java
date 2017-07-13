@@ -45,6 +45,7 @@ import org.apache.ignite.internal.GridDirectMap;
 import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.IgniteCodeGeneratingFail;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsSingleMessage;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersionEx;
 import org.apache.ignite.internal.util.typedef.internal.SB;
@@ -171,14 +172,15 @@ public class MessageCodeGenerator {
 
 //        gen.generateAll(true);
 
-        gen.generateAndWrite(GridDhtPartitionsFullMessage.class);
+//        gen.generateAndWrite(GridDhtPartitionsFullMessage.class);
+//        gen.generateAndWrite(GridDhtPartitionsSingleMessage.class);
 
 //        gen.generateAndWrite(GridNearAtomicUpdateRequest.class);
 
 //        gen.generateAndWrite(GridMessageCollection.class);
 //        gen.generateAndWrite(DataStreamerEntry.class);
 
-//        gen.generateAndWrite(GridDistributedLockRequest.class);
+//        gen.generateAndWrite(GridDhtPartitionsFullMessage.class);
 //        gen.generateAndWrite(GridDistributedLockResponse.class);
 //        gen.generateAndWrite(GridNearLockRequest.class);
 //        gen.generateAndWrite(GridNearLockResponse.class);

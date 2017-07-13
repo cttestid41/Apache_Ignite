@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
-import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.CacheEvent;
@@ -63,8 +62,6 @@ import org.apache.ignite.internal.processors.cache.CachePartitionExchangeWorkerT
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
 import org.apache.ignite.internal.processors.cache.ExchangeActions;
-import org.apache.ignite.internal.processors.cache.ExchangeContext;
-import org.apache.ignite.internal.processors.cache.ExchangeDiscoveryEvents;
 import org.apache.ignite.internal.processors.cache.ExchangeContext;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
@@ -107,7 +104,6 @@ import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.managers.communication.GridIoPolicy.SYSTEM_POOL;
-import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.EXCHANGE_COALESCING_SINCE;
 
 /**
  * Future for exchanging partition maps.
@@ -226,10 +222,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** */
     private final AtomicBoolean done = new AtomicBoolean();
-
-    /** */
-    @GridToStringExclude
-    private ExchangeContext exchCtx;
 
     /** */
     private FinishState finishState;
@@ -505,34 +497,34 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             }
             else {
                 if (exchCtx.coalescing()) {
-                    if (discoEvt.type() == EVT_NODE_JOINED) {
-                        if (discoEvt.eventNode().isLocal()) {
-                            localJoin();
-
-                            if (crdNode) {
-                                exchange = ExchangeType.NONE;
-                            }
-                            else
-                                sendLocalJoinMessage(crd);
-                        }
-                        else {
-                            if (CU.clientNode(discoEvt.eventNode())) {
-                                onClientNodeEvent(crdNode);
-
-                                exchange = ExchangeType.NONE;
-                            }
-                            else {
-                                if (cctx.kernalContext().clientNode())
-                                    exchange = ExchangeType.CLIENT;
-                                else {
-
-                                }
-                            }
-                        }
-                    }
-                    else {
-
-                    }
+//                    if (discoEvt.type() == EVT_NODE_JOINED) {
+//                        if (discoEvt.eventNode().isLocal()) {
+//                            localJoin();
+//
+//                            if (crdNode) {
+//                                exchange = ExchangeType.NONE;
+//                            }
+//                            else
+//                                sendLocalJoinMessage(crd);
+//                        }
+//                        else {
+//                            if (CU.clientNode(discoEvt.eventNode())) {
+//                                onClientNodeEvent(crdNode);
+//
+//                                exchange = ExchangeType.NONE;
+//                            }
+//                            else {
+//                                if (cctx.kernalContext().clientNode())
+//                                    exchange = ExchangeType.CLIENT;
+//                                else {
+//
+//                                }
+//                            }
+//                        }
+//                    }
+//                    else {
+//
+//                    }
                 }
                 else {
                     if (discoEvt.type() == EVT_NODE_JOINED) {
@@ -1460,7 +1452,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private GridDhtPartitionsExchangeFuture mergedWith;
 
     /** */
-    private List<T2<ClusterNode, GridDhtPartitionsSingleMessage>> pendingMsgs;
+    private List<T2<UUID, GridDhtPartitionsSingleMessage>> pendingMsgs;
 
     /**
      * @param fut Current exchange to merge with.
@@ -1469,7 +1461,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void mergeWithFuture(final GridDhtPartitionsExchangeFuture fut) {
         log.info("Merge exchange future [fut=" + topologyVersion() + ", mergeWith=" + fut.topologyVersion() + ']');
 
-        List<T2<ClusterNode, GridDhtPartitionsSingleMessage>> pendingMsgs = null;
+        List<T2<UUID, GridDhtPartitionsSingleMessage>> pendingMsgs = null;
 
         synchronized (this) {
             synchronized (fut) {
@@ -1482,13 +1474,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 if (this.pendingMsgs != null) {
                     pendingMsgs = this.pendingMsgs;
 
-                    T2<ClusterNode, GridDhtPartitionsSingleMessage> joinedSrvMsg = null;
+                    T2<UUID, GridDhtPartitionsSingleMessage> joinedSrvMsg = null;
 
                     if (discoEvt.type() == EVT_NODE_JOINED && !CU.clientNode(discoEvt.eventNode())) {
-                        for (Iterator<T2<ClusterNode, GridDhtPartitionsSingleMessage>> it = pendingMsgs.iterator(); it.hasNext();) {
-                            T2<ClusterNode, GridDhtPartitionsSingleMessage> msg = it.next();
+                        for (Iterator<T2<UUID, GridDhtPartitionsSingleMessage>> it = pendingMsgs.iterator(); it.hasNext();) {
+                            T2<UUID, GridDhtPartitionsSingleMessage> msg = it.next();
 
-                            if (msg.get1().equals(discoEvt.eventNode())) {
+                            if (msg.get1().equals(discoEvt.eventNode().id())) {
                                 joinedSrvMsg = msg;
 
                                 it.remove();
@@ -1505,12 +1497,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         if (pendingMsgs != null) {
-            final List<T2<ClusterNode, GridDhtPartitionsSingleMessage>> pendingMsgs0 = pendingMsgs;
+            final List<T2<UUID, GridDhtPartitionsSingleMessage>> pendingMsgs0 = pendingMsgs;
 
             fut.listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
                 @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut0) {
-                    for (T2<ClusterNode, GridDhtPartitionsSingleMessage> msg : pendingMsgs0)
-                        fut.processMessage(msg.get1(), msg.get2());
+                    for (T2<UUID, GridDhtPartitionsSingleMessage> msg : pendingMsgs0)
+                        fut.processSingleMessage(msg.get1(), msg.get2());
                 }
             });
         }
@@ -1547,7 +1539,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (pendingMsgs == null)
                         pendingMsgs = new ArrayList<>();
 
-                    pendingMsgs.add(new T2<>(node, msg));
+                    pendingMsgs.add(new T2<>(node.id(), msg));
                 }
             }
 

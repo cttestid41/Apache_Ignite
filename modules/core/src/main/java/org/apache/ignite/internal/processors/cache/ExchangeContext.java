@@ -56,6 +56,8 @@ public class ExchangeContext {
      */
     public ExchangeContext(int protocolVer) {
         fetchAffOnJoin = protocolVer == 1;
+
+        coalescing = protocolVer > 1;
     }
 
     /**
@@ -81,6 +83,10 @@ public class ExchangeContext {
      */
     @Nullable public Set<Integer> groupsAffinityRequestOnJoin() {
         return requestGrpsAffOnJoin;
+    }
+
+    public boolean coalescing() {
+        return coalescing;
     }
 
     public List<List<ClusterNode>> activeAffinity(GridCacheSharedContext cctx, GridAffinityAssignmentCache aff) {

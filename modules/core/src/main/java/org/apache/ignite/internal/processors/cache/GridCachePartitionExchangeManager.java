@@ -1739,7 +1739,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     }
 
     private boolean supportsCoalescing(ClusterNode node) {
-        return node.version().compareToIgnoreTimestamp(EXCHANGE_COALESCING_SINCE) >= 0;
+        return exchangeProtocolVersion(node.version()) > 1;
     }
 
     /** */
