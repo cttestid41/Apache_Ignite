@@ -1167,7 +1167,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (cctx.kernalContext().clientNode()) {
             msg = new GridDhtPartitionsSingleMessage(exchangeId(),
                 true,
-                cctx.versions().last(),
+                null,
                 true);
         }
         else {
