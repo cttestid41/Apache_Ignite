@@ -224,6 +224,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private final AtomicBoolean done = new AtomicBoolean();
 
     /** */
+    @GridToStringExclude
+    private ExchangeContext exchCtx;
+
+    /** */
     private FinishState finishState;
 
     /**
@@ -413,10 +417,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         return false;
     }
-
-    /** */
-    @GridToStringExclude
-    private ExchangeContext exchCtx;
 
     /**
      *
