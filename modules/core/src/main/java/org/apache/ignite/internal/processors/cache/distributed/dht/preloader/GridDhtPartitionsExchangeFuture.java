@@ -1415,7 +1415,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void onReceive(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         assert msg != null;
         assert exchId.equals(msg.exchangeId()) : msg;
-        assert msg.lastVersion() != null : msg;
 
         if (isDone()) {
             if (log.isDebugEnabled())
@@ -1427,6 +1426,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
         else {
             assert !msg.client() : msg;
+            assert msg.lastVersion() != null : msg;
 
             updateLastVersion(msg.lastVersion());
 
