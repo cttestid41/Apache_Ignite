@@ -96,7 +96,6 @@ import org.apache.ignite.internal.pagemem.wal.record.WALRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.PageDeltaRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.PartitionDestroyRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.PartitionMetaStateRecord;
-import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -1540,6 +1539,7 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                     long partMetaId = pageMem.partitionMetaPageId(grpId, i);
                     long partMetaPage = pageMem.acquirePage(grpId, partMetaId);
+
                     try {
                         long pageAddr = pageMem.writeLock(grpId, partMetaId, partMetaPage);
 
@@ -1550,8 +1550,7 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
                             T2<Integer, Long> fromWal = partStates.get(new T2<>(grpId, i));
 
-                            GridDhtLocalPartition part = grp.topology()
-                                .localPartition(i, AffinityTopologyVersion.NONE, true);
+                            GridDhtLocalPartition part = grp.topology().forceCreatePartition(i);
 
                             assert part != null;
 
@@ -1609,10 +1608,10 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
     /**
      * @param cacheCtx Cache context to apply an update.
      * @param dataEntry Data entry to apply.
+     * @throws IgniteCheckedException If failed to restore.
      */
     private void applyUpdate(GridCacheContext cacheCtx, DataEntry dataEntry) throws IgniteCheckedException {
-        GridDhtLocalPartition locPart = cacheCtx.topology()
-            .localPartition(dataEntry.partitionId(), AffinityTopologyVersion.NONE, true);
+        GridDhtLocalPartition locPart = cacheCtx.topology().forceCreatePartition(dataEntry.partitionId());
 
         switch (dataEntry.op()) {
             case CREATE:

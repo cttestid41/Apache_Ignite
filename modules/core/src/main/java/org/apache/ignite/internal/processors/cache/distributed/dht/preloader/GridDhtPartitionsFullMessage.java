@@ -19,12 +19,14 @@ package org.apache.ignite.internal.processors.cache.distributed.dht.preloader;
 
 import java.io.Externalizable;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.internal.GridDirectMap;
 import org.apache.ignite.internal.GridDirectTransient;
@@ -34,6 +36,7 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartit
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -105,8 +108,8 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     private AffinityTopologyVersion resTopVer;
 
     /** */
-    @GridDirectMap(keyType = Integer.class, valueType = GridLongList.class)
-    private Map<Integer, GridLongList> cachesAff;
+    @GridDirectCollection(CacheGroupAffinityMessage.class)
+    private Collection<CacheGroupAffinityMessage> cachesAff;
 
     /**
      * Required by {@link Externalizable}.
@@ -132,6 +135,55 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         this.topVer = topVer;
         this.partHistSuppliers = partHistSuppliers;
         this.partsToReload = partsToReload;
+    }
+
+    /** {@inheritDoc} */
+    @Override void copyStateTo(GridDhtPartitionsAbstractMessage msg) {
+        super.copyStateTo(msg);
+
+        GridDhtPartitionsFullMessage cp = (GridDhtPartitionsFullMessage)msg;
+
+        cp.parts = parts;
+        cp.dupPartsData = dupPartsData;
+        cp.partsBytes = partsBytes;
+        cp.partCntrs = partCntrs;
+        cp.partCntrsBytes = partCntrsBytes;
+        cp.partHistSuppliers = partHistSuppliers;
+        cp.partHistSuppliersBytes = partHistSuppliersBytes;
+        cp.partsToReload = partsToReload;
+        cp.partsToReloadBytes = partsToReloadBytes;
+        cp.topVer = topVer;
+        cp.cachesAff = cachesAff;
+    }
+
+    /**
+     * @param cachesAff Affinity.
+     * @return Message copy.
+     */
+    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
+        assert !F.isEmpty(cachesAff) : cachesAff;
+
+        GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
+
+        copyStateTo(cp);
+
+        cp.cachesAff = cachesAff;
+
+        return cp;
+    }
+
+    /**
+     * @return Affinity.
+     */
+    @Nullable Collection<CacheGroupAffinityMessage> cachesAffinity() {
+        return cachesAff;
+    }
+
+    /**
+     * @param cachesAff Affinity.
+     */
+    void cachesAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
+        this.cachesAff = cachesAff;
     }
 
     /** {@inheritDoc} */
@@ -415,7 +467,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
 
         switch (writer.state()) {
             case 5:
-                if (!writer.writeMap("cachesAff", cachesAff, MessageCollectionItemType.INT, MessageCollectionItemType.MSG))
+                if (!writer.writeCollection("cachesAff", cachesAff, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
@@ -457,12 +509,6 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
                 writer.incrementState();
 
             case 12:
-                if (!writer.writeMessage("resTopVer", resTopVer))
-                    return false;
-
-                writer.incrementState();
-
-            case 13:
                 if (!writer.writeMessage("topVer", topVer))
                     return false;
 
@@ -485,7 +531,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
 
         switch (reader.state()) {
             case 5:
-                cachesAff = reader.readMap("cachesAff", MessageCollectionItemType.INT, MessageCollectionItemType.MSG, false);
+                cachesAff = reader.readCollection("cachesAff", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
                     return false;
@@ -541,14 +587,6 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
                 reader.incrementState();
 
             case 12:
-                resTopVer = reader.readMessage("resTopVer");
-
-                if (!reader.isLastRead())
-                    return false;
-
-                reader.incrementState();
-
-            case 13:
                 topVer = reader.readMessage("topVer");
 
                 if (!reader.isLastRead())
@@ -568,7 +606,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 14;
+        return 13;
     }
 
     /** {@inheritDoc} */

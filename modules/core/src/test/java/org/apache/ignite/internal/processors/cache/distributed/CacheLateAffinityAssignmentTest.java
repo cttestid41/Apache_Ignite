@@ -37,6 +37,7 @@ import javax.cache.processor.EntryProcessor;
 import javax.cache.processor.MutableEntry;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteServices;
 import org.apache.ignite.IgniteTransactions;
@@ -99,7 +100,6 @@ import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheRebalanceMode.ASYNC;
 import static org.apache.ignite.cache.CacheRebalanceMode.SYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
-import static org.apache.ignite.internal.IgniteNodeAttributes.ATTR_IGNITE_INSTANCE_NAME;
 
 /**
  *
@@ -331,7 +331,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         };
 
-        cacheNodeFilter = new CacheNodeFilter(F.asList(getTestIgniteInstanceName(0)));
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(F.asList(getTestIgniteInstanceName(0)));
 
         testAffinitySimpleSequentialStart();
 
@@ -351,7 +351,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         };
 
-        cacheNodeFilter = new CacheNodeFilter(F.asList(getTestIgniteInstanceName(1)));
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(F.asList(getTestIgniteInstanceName(1)));
 
         startServer(0, 1);
 
@@ -391,7 +391,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         };
 
-        cacheNodeFilter = new CacheNodeFilter(F.asList(getTestIgniteInstanceName(1), getTestIgniteInstanceName(2)));
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(F.asList(getTestIgniteInstanceName(1), getTestIgniteInstanceName(2)));
 
         startServer(0, 1);
         startServer(1, 2);
@@ -439,7 +439,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         };
 
-        cacheNodeFilter = new CacheNodeFilter(F.asList(getTestIgniteInstanceName(0)));
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(F.asList(getTestIgniteInstanceName(0)));
 
         Ignite ignite0 = startServer(0, 1);
 
@@ -467,7 +467,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         };
 
-        cacheNodeFilter = new CacheNodeFilter(F.asList(getTestIgniteInstanceName(0)));
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(F.asList(getTestIgniteInstanceName(0)));
 
         Ignite ignite0 = startServer(0, 1);
 
@@ -520,7 +520,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
      */
     private void cacheDestroyAndCreate(boolean cacheOnCrd) throws Exception {
         if (!cacheOnCrd)
-            cacheNodeFilter = new CacheNodeFilter(Collections.singletonList(getTestIgniteInstanceName(0)));
+            cacheNodeFilter = new TestCacheNodeExcludingFilter(Collections.singletonList(getTestIgniteInstanceName(0)));
 
         startServer(0, 1);
 
@@ -1891,6 +1891,29 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
     }
 
     /**
+     * @throws Exception If failed.
+     */
+    public void testStreamer1() throws Exception {
+        cacheC = new IgniteClosure<String, CacheConfiguration[]>() {
+            @Override public CacheConfiguration[] apply(String s) {
+                return null;
+            }
+        };
+
+        startServer(0, 1);
+
+        cacheC = null;
+        cacheNodeFilter = new TestCacheNodeExcludingFilter(Collections.singletonList(getTestIgniteInstanceName(0)));
+
+        startServer(1, 2);
+
+        IgniteDataStreamer<Object, Object> streamer = ignite(0).dataStreamer(CACHE_NAME1);
+
+        streamer.addData(1, 1);
+        streamer.flush();
+    }
+
+    /**
      * @param cache Cache
      */
     private void cacheOperations(IgniteCache<Object, Object> cache) {
@@ -2069,7 +2092,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
                     exclude.add("server-" + (srvIdx + rnd.nextInt(10)));
             }
 
-            ccfg.setNodeFilter(new CacheNodeFilter(exclude));
+            ccfg.setNodeFilter(new TestCacheNodeExcludingFilter(exclude));
         }
 
         ccfg.setName(name);
@@ -2639,28 +2662,6 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
         /** {@inheritDoc} */
         @Override public ClusterNode serviceNode() {
             return ignite.cluster().localNode();
-        }
-    }
-
-    /**
-     *
-     */
-    static class CacheNodeFilter implements IgnitePredicate<ClusterNode> {
-        /** */
-        private Collection<String> excludeNodes;
-
-        /**
-         * @param excludeNodes Nodes names.
-         */
-        public CacheNodeFilter(Collection<String> excludeNodes) {
-            this.excludeNodes = excludeNodes;
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean apply(ClusterNode clusterNode) {
-            String name = clusterNode.attribute(ATTR_IGNITE_INSTANCE_NAME).toString();
-
-            return !excludeNodes.contains(name);
         }
     }
 

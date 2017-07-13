@@ -21,8 +21,9 @@ import junit.framework.TestSuite;
 import org.apache.ignite.internal.processors.cache.persistence.IgnitePdsClientNearCachePutGetTest;
 import org.apache.ignite.internal.processors.cache.persistence.IgnitePdsDynamicCacheTest;
 import org.apache.ignite.internal.processors.cache.persistence.IgnitePdsSingleNodePutGetPersistenceTest;
-import org.apache.ignite.internal.processors.cache.persistence.db.file.IgnitePdsEvictionTest;
+import org.apache.ignite.internal.processors.cache.persistence.db.IgnitePdsCacheRestoreTest;
 import org.apache.ignite.internal.processors.cache.persistence.db.file.IgnitePdsCheckpointSimulationWithRealCpDisabledTest;
+import org.apache.ignite.internal.processors.cache.persistence.db.file.IgnitePdsEvictionTest;
 import org.apache.ignite.internal.processors.cache.persistence.pagemem.BPlusTreePageMemoryImplTest;
 import org.apache.ignite.internal.processors.cache.persistence.pagemem.BPlusTreeReuseListPageMemoryImplTest;
 import org.apache.ignite.internal.processors.cache.persistence.pagemem.MetadataStoragePageMemoryImplTest;
@@ -70,6 +71,8 @@ public class IgnitePdsTestSuite extends TestSuite {
         suite.addTestSuite(IgnitePdsSingleNodePutGetPersistenceTest.class);
         suite.addTestSuite(IgnitePdsDynamicCacheTest.class);
         suite.addTestSuite(IgnitePdsClientNearCachePutGetTest.class);
+
+        suite.addTestSuite(IgnitePdsCacheRestoreTest.class);
 
         return suite;
     }

@@ -64,6 +64,15 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
         this.lastVer = lastVer;
     }
 
+    /**
+     * @param msg Message.
+     */
+    void copyStateTo(GridDhtPartitionsAbstractMessage msg) {
+        msg.exchId = exchId;
+        msg.lastVer = lastVer;
+        msg.flags = flags;
+    }
+
     /** {@inheritDoc} */
     @Override public boolean cacheGroupMessage() {
         return false;

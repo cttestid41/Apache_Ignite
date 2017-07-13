@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -131,7 +132,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         IgniteSystemProperties.getInteger(IgniteSystemProperties.IGNITE_EXCHANGE_HISTORY_SIZE, 1_000);
 
     /** TODO IGNITE-5578. */
-    public static final IgniteProductVersion EXCHANGE_COALESCING_SINCE = IgniteProductVersion.fromString("2.0.0");
+    private static final IgniteProductVersion EXCHANGE_PROTOCOL_2_SINCE = IgniteProductVersion.fromString("2.1.0");
 
     /** Atomic reference for pending timeout object. */
     private AtomicReference<ResendTimeoutObject> pendingResend = new AtomicReference<>();
@@ -590,6 +591,17 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             if (log.isDebugEnabled())
                 log.debug("Finished waiting for initial exchange: " + fut.exchangeId());
         }
+    }
+
+    /**
+     * @param ver Node version.
+     * @return Supported exchange protocol version.
+     */
+    public int exchangeProtocolVersion(IgniteProductVersion ver) {
+        if (ver.compareToIgnoreTimestamp(EXCHANGE_PROTOCOL_2_SINCE) >= 0)
+            return 2;
+
+        return 1;
     }
 
     /**
@@ -1072,8 +1084,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
      * @param id ID.
      */
     private void sendLocalPartitions(ClusterNode node, @Nullable GridDhtPartitionExchangeId id) {
-        GridDhtPartitionsSingleMessage m = createPartitionsSingleMessage(node,
-            id,
+        GridDhtPartitionsSingleMessage m = createPartitionsSingleMessage(id,
             cctx.kernalContext().clientNode(),
             false);
 
@@ -1094,14 +1105,12 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     }
 
     /**
-     * @param targetNode Target node.
      * @param exchangeId ID.
      * @param clientOnlyExchange Client exchange flag.
      * @param sndCounters {@code True} if need send partition update counters.
      * @return Message.
      */
-    public GridDhtPartitionsSingleMessage createPartitionsSingleMessage(ClusterNode targetNode,
-        @Nullable GridDhtPartitionExchangeId exchangeId,
+    public GridDhtPartitionsSingleMessage createPartitionsSingleMessage(@Nullable GridDhtPartitionExchangeId exchangeId,
         boolean clientOnlyExchange,
         boolean sndCounters)
     {
@@ -1430,7 +1439,12 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             return;
 
         try {
-            sendLocalPartitions(node, msg.exchangeId());
+            GridDhtPartitionsExchangeFuture fut = exchFuts.find(msg.exchangeId());
+
+            if (fut != null)
+                fut.processSinglePartitionRequest(node, msg);
+            else
+                sendLocalPartitions(node, msg.exchangeId());
         }
         finally {
             leaveBusy();
@@ -2330,6 +2344,23 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
          */
         @Override public synchronized List<GridDhtPartitionsExchangeFuture> values() {
             return super.values();
+        }
+
+        /**
+         * @param exchangeId Exchange ID.
+         * @return Future.
+         */
+        public synchronized GridDhtPartitionsExchangeFuture find(GridDhtPartitionExchangeId exchangeId) {
+            ListIterator<GridDhtPartitionsExchangeFuture> it = listIterator(size() - 1);
+
+            while (it.hasPrevious()) {
+                GridDhtPartitionsExchangeFuture fut0 = it.previous();
+
+                if (fut0.exchangeId().equals(exchangeId))
+                    return fut0;
+            }
+
+            return null;
         }
 
         /** {@inheritDoc} */

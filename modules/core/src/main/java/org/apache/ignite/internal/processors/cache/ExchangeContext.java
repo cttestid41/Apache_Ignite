@@ -27,12 +27,21 @@ import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
+import java.util.HashSet;
+import java.util.Set;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.jetbrains.annotations.Nullable;
 
 /**
  *
  */
 public class ExchangeContext {
+    /** */
+    private Set<Integer> requestGrpsAffOnJoin;
+
+    /** */
+    private boolean fetchAffOnJoin;
+
     /** */
     private final boolean coalescing;
 
@@ -42,40 +51,36 @@ public class ExchangeContext {
     /** */
     private final Map<Integer, List<List<ClusterNode>>> affMap = new HashMap<>();
 
-    /** */
-    private Set<Integer> cacheGrpsOnLocStart;
-//
-//    private Set<UUID> joinedNodes;
-//
-//    public boolean nodeJoined(UUID nodeId) {
-//        return joinedNodes != null && joinedNodes.contains(nodeId);
-//    }
+    /**
+     * @param protocolVer Protocol version.
+     */
+    public ExchangeContext(int protocolVer) {
+        fetchAffOnJoin = protocolVer == 1;
+    }
 
     /**
-     * @param coalescing
+     * @return {@code True} if on local join need fetch affinity per-group (old protocol),
+     *      otherwise affinity is sent in {@link GridDhtPartitionsFullMessage}.
      */
-    public ExchangeContext(AffinityTopologyVersion resTopVer, boolean coalescing) {
-        this.coalescing = coalescing;
-        this.resTopVer = resTopVer;
+    boolean fetchAffinityOnJoin() {
+        return fetchAffOnJoin;
     }
 
-    public AffinityTopologyVersion resultTopologyVersion() {
-        return resTopVer;
+    /**
+     * @param grpId Cache group ID.
+     */
+    void addGroupAffinityRequestOnJoin(Integer grpId) {
+        if (requestGrpsAffOnJoin == null)
+            requestGrpsAffOnJoin = new HashSet<>();
+
+        requestGrpsAffOnJoin.add(grpId);
     }
 
-    public boolean coalescing() {
-        return coalescing;
-    }
-
-    public void addCacheGroupOnLocalStart(Integer grpId) {
-        if (cacheGrpsOnLocStart == null)
-            cacheGrpsOnLocStart = new HashSet<>();
-
-        cacheGrpsOnLocStart.add(grpId);
-    }
-
-    @Nullable public Set<Integer> cacheGroupsOnLocalStart() {
-        return cacheGrpsOnLocStart;
+    /**
+     * @return Groups to request affinity for.
+     */
+    @Nullable public Set<Integer> groupsAffinityRequestOnJoin() {
+        return requestGrpsAffOnJoin;
     }
 
     public List<List<ClusterNode>> activeAffinity(GridCacheSharedContext cctx, GridAffinityAssignmentCache aff) {
