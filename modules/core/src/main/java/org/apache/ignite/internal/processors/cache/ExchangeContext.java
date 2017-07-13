@@ -22,13 +22,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
-import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
-import java.util.HashSet;
-import java.util.Set;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,11 +49,14 @@ public class ExchangeContext {
 
     /**
      * @param protocolVer Protocol version.
+     * @param topVer Topology version.
      */
-    public ExchangeContext(int protocolVer) {
+    public ExchangeContext(int protocolVer, AffinityTopologyVersion topVer) {
         fetchAffOnJoin = protocolVer == 1;
 
         coalescing = protocolVer > 1;
+
+        this.resTopVer = topVer;
     }
 
     /**

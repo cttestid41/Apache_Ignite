@@ -443,7 +443,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert discoEvt != null : this;
         assert exchId.nodeId().equals(discoEvt.eventNode().id()) : this;
 
-        exchCtx = new ExchangeContext(cctx.exchange().exchangeProtocolVersion(discoCache.minimumNodeVersion()));
+        exchCtx = new ExchangeContext(cctx.exchange().exchangeProtocolVersion(discoCache.minimumNodeVersion()),
+            topologyVersion());
 
         try {
             discoCache.updateAlives(cctx.discovery());
@@ -533,11 +534,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                 discoEvt.eventNode().id(),
                                 topVer);
 
-                        cctx.affinity().initStartedCaches(crdNode, this, receivedCaches);
+                            cctx.affinity().initStartedCaches(crdNode, this, receivedCaches);
+                        }
+                        else
+                            initCachesOnLocalJoin();
                     }
-                    else
-                        initCachesOnLocalJoin();
-                }
 
                     exchange = CU.clientNode(discoEvt.eventNode()) ?
                         onClientNodeEvent(crdNode) :
