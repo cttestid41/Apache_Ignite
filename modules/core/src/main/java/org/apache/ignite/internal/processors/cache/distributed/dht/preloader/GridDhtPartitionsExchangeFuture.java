@@ -933,10 +933,18 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void tryToPerformLocalSnapshotOperation() {
         try {
+            long start = U.currentTimeMillis();
+
             IgniteInternalFuture fut = cctx.snapshot().tryStartLocalSnapshotOperation(discoEvt);
 
             if (fut != null)
                 fut.get();
+
+            long end = U.currentTimeMillis();
+
+            if (log.isInfoEnabled())
+                log.info("Snapshot initialization completed [topVer=" + exchangeId().topologyVersion() +
+                    ", time=" + (end - start) + "ms]");
         }
         catch (IgniteCheckedException e) {
             U.error(log, "Error while starting snapshot operation", e);
@@ -1529,6 +1537,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
         else {
             assert !msg.client() : msg;
+            assert msg.lastVersion() != null : msg;
 
             updateLastVersion(msg.lastVersion());
 
