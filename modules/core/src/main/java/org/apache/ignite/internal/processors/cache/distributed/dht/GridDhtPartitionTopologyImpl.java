@@ -41,6 +41,7 @@ import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
+import org.apache.ignite.internal.processors.cache.ExchangeDiscoveryEvents;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionExchangeId;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionFullMap;
@@ -60,6 +61,8 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_DATA_LOST;
+import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
+import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState.EVICTED;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState.LOST;
@@ -297,7 +300,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
      * @param updateSeq Update sequence.
      */
     private void initPartitions0(GridDhtPartitionsExchangeFuture exchFut, long updateSeq) {
-        List<List<ClusterNode>> aff = grp.affinity().assignments(exchFut.topologyVersion());
+        AffinityTopologyVersion resTopVer = exchFut.context().events().topologyVersion();
+
+        List<List<ClusterNode>> aff = grp.affinity().readyAssignments(resTopVer);
 
         if (grp.affinityNode()) {
             ClusterNode loc = ctx.localNode();
@@ -306,15 +311,10 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             GridDhtPartitionExchangeId exchId = exchFut.exchangeId();
 
-            assert topVer.equals(exchFut.topologyVersion()) :
-                "Invalid topology [topVer=" + topVer +
-                    ", grp=" + grp.cacheOrGroupName() +
-                    ", futVer=" + exchFut.topologyVersion() +
-                    ", fut=" + exchFut + ']';
-            assert grp.affinity().lastVersion().equals(exchFut.topologyVersion()) :
+            assert grp.affinity().lastVersion().equals(resTopVer) :
                 "Invalid affinity [topVer=" + grp.affinity().lastVersion() +
                     ", grp=" + grp.cacheOrGroupName() +
-                    ", futVer=" + exchFut.topologyVersion() +
+                    ", futVer=" + resTopVer +
                     ", fut=" + exchFut + ']';
 
             int num = grp.affinity().partitions();
@@ -433,18 +433,22 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     if (stopping)
                         return;
 
-                    GridDhtPartitionExchangeId exchId = exchFut.exchangeId();
+                    ExchangeDiscoveryEvents evts = exchFut.context().events();
 
-                    assert topVer.equals(exchId.topologyVersion()) : "Invalid topology version [topVer=" + topVer +
-                        ", exchId=" + exchId + ']';
+                    assert topVer.equals(exchFut.topologyVersion()) : "Invalid topology version [topVer=" + topVer +
+                        ", exchId=" + exchFut.exchangeId() + ']';
 
-                    if (exchId.isLeft() && exchFut.serverNodeDiscoveryEvent())
-                        removeNode(exchId.nodeId());
+                    topVer = evts.topologyVersion();
+
+                    for (DiscoveryEvent evt : evts.events()) {
+                        if ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()))
+                            removeNode(evt.eventNode().id());
+                    }
     
                     ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
 
                     if (log.isDebugEnabled()) {
-                        log.debug("Partition map beforeExchange [exchId=" + exchId +
+                        log.debug("Partition map beforeExchange [exchId=" + exchFut.exchangeId() +
                             ", fullMap=" + fullMapString() + ']');
                     }
 
@@ -461,7 +465,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                             if (log.isDebugEnabled())
                                 log.debug("Created brand new full topology map on oldest node [exchId=" +
-                                    exchId + ", fullMap=" + fullMapString() + ']');
+                                    exchFut.exchangeId() + ", fullMap=" + fullMapString() + ']');
                         }
                         else if (!node2part.valid()) {
                             node2part = new GridDhtPartitionFullMap(oldest.id(),
@@ -471,7 +475,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                                 false);
 
                             if (log.isDebugEnabled()) {
-                                log.debug("Created new full topology map on oldest node [exchId=" + exchId +
+                                log.debug("Created new full topology map on oldest node [exchId=" + exchFut.exchangeId() +
                                     ", fullMap=" + node2part + ']');
                             }
                         }
@@ -484,7 +488,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                             if (log.isDebugEnabled()) {
                                 log.debug("Copied old map into new map on oldest node (previous oldest node left) [" +
-                                    "exchId=" + exchId + ", fullMap=" + fullMapString() + ']');
+                                    "exchId=" + exchFut.exchangeId() + ", fullMap=" + fullMapString() + ']');
                             }
                         }
                     }
@@ -504,7 +508,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     consistencyCheck();
 
                     if (log.isDebugEnabled()) {
-                        log.debug("Partition map after beforeExchange [exchId=" + exchId +
+                        log.debug("Partition map after beforeExchange [exchId=" + exchFut.exchangeId() +
                             ", fullMap=" + fullMapString() + ']');
                     }
                 }
@@ -533,7 +537,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
         int num = grp.affinity().partitions();
 
-        AffinityTopologyVersion topVer = exchFut.topologyVersion();
+        AffinityTopologyVersion topVer = exchFut.context().events().topologyVersion();
 
         assert grp.affinity().lastVersion().equals(topVer) : "Affinity is not initialized " +
             "[topVer=" + topVer +
@@ -545,9 +549,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         try {
             if (stopping)
                 return false;
-
-            assert topVer.equals(exchFut.topologyVersion()) : "Invalid topology version [topVer=" +
-                topVer + ", exchId=" + exchFut.exchangeId() + ']';
 
             if (log.isDebugEnabled())
                 log.debug("Partition map before afterExchange [exchId=" + exchFut.exchangeId() + ", fullMap=" +
@@ -1112,6 +1113,12 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         try {
             if (stopping)
                 return false;
+
+            if (exchangeVer != null) {
+                assert exchangeVer.compareTo(topVer) >= 0 : exchangeVer;
+
+                topVer = exchangeVer;
+            }
 
             if (cntrMap != null) {
                 // update local map partition counters

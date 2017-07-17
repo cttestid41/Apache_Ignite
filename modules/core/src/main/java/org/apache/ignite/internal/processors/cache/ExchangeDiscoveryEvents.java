@@ -19,17 +19,15 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
-import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 
-import static com.sun.corba.se.impl.util.RepositoryId.cache;
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
 import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
@@ -45,7 +43,7 @@ public class ExchangeDiscoveryEvents {
     private DiscoCache discoCache;
 
     /** */
-    private DiscoveryEvent evt;
+    private DiscoveryEvent lastEvt;
 
     /** */
     private List<DiscoveryEvent> evts = new ArrayList<>();
@@ -76,7 +74,7 @@ public class ExchangeDiscoveryEvents {
         evts.add(evt);
 
         this.topVer = topVer;
-        this.evt = evt;
+        this.lastEvt = evt;
         this.discoCache = cache;
 
         ClusterNode node = evt.eventNode();
@@ -92,23 +90,27 @@ public class ExchangeDiscoveryEvents {
         }
     }
 
-    DiscoCache discoveryCache() {
+    public List<DiscoveryEvent> events() {
+        return evts;
+    }
+
+    public DiscoCache discoveryCache() {
         return discoCache;
     }
 
-    DiscoveryEvent event() {
-        return evt;
+    public DiscoveryEvent lastEvent() {
+        return lastEvt;
     }
 
-    AffinityTopologyVersion topologyVersion() {
+    public AffinityTopologyVersion topologyVersion() {
         return topVer;
     }
 
-    boolean serverJoin() {
+    public boolean serverJoin() {
         return srvJoin;
     }
 
-    boolean serverLeft() {
+    public boolean serverLeft() {
         return srvLeft;
     }
 }

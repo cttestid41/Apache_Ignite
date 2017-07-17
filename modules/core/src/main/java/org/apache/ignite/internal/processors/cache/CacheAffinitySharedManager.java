@@ -1259,7 +1259,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     CacheGroupHolder cache = groupHolder(topVer, desc);
 
-                    cache.affinity().calculate(topVer, evts.event(), evts.discoveryCache());
+                    cache.affinity().calculate(topVer, evts.lastEvent(), evts.discoveryCache());
                 }
             });
 
@@ -1726,7 +1726,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         if (addedOnExchnage) {
             if (aff.lastVersion().equals(AffinityTopologyVersion.NONE)) {
                 List<List<ClusterNode>> newAff = aff.calculate(evts.topologyVersion(),
-                    evts.event(),
+                    evts.lastEvent(),
                     evts.discoveryCache());
 
                 aff.initialize(evts.topologyVersion(), newAff);
@@ -1744,7 +1744,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
         assert aff.idealAssignment() != null : "Previous assignment is not available.";
 
-        List<List<ClusterNode>> idealAssignment = aff.calculate(evts.topologyVersion(), evts.event(), evts.discoveryCache());
+        List<List<ClusterNode>> idealAssignment = aff.calculate(evts.topologyVersion(), evts.lastEvent(), evts.discoveryCache());
         List<List<ClusterNode>> newAssignment = null;
 
         if (latePrimary) {

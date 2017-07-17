@@ -100,6 +100,10 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
         return exchId;
     }
 
+    public void exchangeId(GridDhtPartitionExchangeId exchId) {
+        this.exchId = exchId;
+    }
+
     /**
      * @param grpId Cache group ID.
      * @return Parition update counters.

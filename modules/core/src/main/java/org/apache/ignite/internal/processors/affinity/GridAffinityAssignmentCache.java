@@ -360,6 +360,15 @@ public class GridAffinityAssignmentCache {
 
         return aff.assignment();
     }
+    /**
+     * @param topVer Topology version.
+     * @return Affinity assignment.
+     */
+    public List<List<ClusterNode>> readyAssignments(AffinityTopologyVersion topVer) {
+        AffinityAssignment aff = readyAffinity(topVer);
+
+        return aff.assignment();
+    }
 
     /**
      * Gets future that will be completed after topology with version {@code topVer} is calculated.
@@ -461,6 +470,26 @@ public class GridAffinityAssignmentCache {
         }
 
         return false;
+    }
+
+    public AffinityAssignment readyAffinity(AffinityTopologyVersion topVer) {
+        AffinityAssignment cache = head.get();
+
+        if (!cache.topologyVersion().equals(topVer)) {
+            cache = affCache.get(topVer);
+
+            if (cache == null) {
+                throw new IllegalStateException("Affinity for topology version is " +
+                    "not initialized [locNode=" + ctx.discovery().localNode().id() +
+                    ", grp=" + cacheOrGrpName +
+                    ", topVer=" + topVer +
+                    ", head=" + head.get().topologyVersion() +
+                    ", history=" + affCache.keySet() +
+                    ']');
+            }
+        }
+
+        return cache;
     }
 
     /**

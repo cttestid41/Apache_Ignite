@@ -152,6 +152,11 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         cp.partsToReloadBytes = partsToReloadBytes;
         cp.topVer = topVer;
         cp.cachesAff = cachesAff;
+        cp.resTopVer = resTopVer;
+    }
+
+    public void resultTopologyVersion(AffinityTopologyVersion resTopVer) {
+        this.resTopVer = resTopVer;
     }
 
     AffinityTopologyVersion resultTopologyVersion() {
@@ -159,17 +164,12 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     }
 
     /**
-     * @param cachesAff Affinity.
      * @return Message copy.
      */
-    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
-        assert !F.isEmpty(cachesAff) : cachesAff;
-
+    GridDhtPartitionsFullMessage copy() {
         GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
 
         copyStateTo(cp);
-
-        cp.cachesAff = cachesAff;
 
         return cp;
     }

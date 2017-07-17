@@ -188,7 +188,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         int partCnt = grp.affinity().partitions();
 
-        assert exchFut == null || exchFut.topologyVersion().equals(top.topologyVersion()) :
+        assert exchFut == null || exchFut.context().events().topologyVersion().equals(top.topologyVersion()) :
             "Topology version mismatch [exchId=" + exchId +
                 ", grp=" + grp.name() +
                 ", topVer=" + top.topologyVersion() + ']';
@@ -242,7 +242,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
                     if (msg == null) {
                         assigns.put(histSupplier, msg = new GridDhtPartitionDemandMessage(
                             top.updateSequence(),
-                            exchId.topologyVersion(),
+                            assigns.topologyVersion(),
                             grp.groupId()));
                     }
 
@@ -309,7 +309,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
                     if (msg == null) {
                         assigns.put(n, msg = new GridDhtPartitionDemandMessage(
                             top.updateSequence(),
-                            exchId.topologyVersion(),
+                            assigns.topologyVersion(),
                             grp.groupId()));
                     }
 
