@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cluster.DiscoveryDataClusterState;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -85,6 +86,9 @@ public class DiscoCache {
     /** */
     private final IgniteProductVersion minNodeVer;
 
+    /** */
+    private final AffinityTopologyVersion topVer;
+
     /**
      * @param state Current cluster state.
      * @param loc Local node.
@@ -101,6 +105,7 @@ public class DiscoCache {
      * @param alives Alive nodes.
      */
     DiscoCache(
+        AffinityTopologyVersion topVer,
         DiscoveryDataClusterState state,
         ClusterNode loc,
         List<ClusterNode> rmtNodes,
@@ -114,6 +119,7 @@ public class DiscoCache {
         Map<Integer, List<ClusterNode>> cacheGrpAffNodes,
         Map<UUID, ClusterNode> nodeMap,
         Set<UUID> alives) {
+        this.topVer = topVer;
         this.state = state;
         this.loc = loc;
         this.rmtNodes = rmtNodes;
@@ -140,6 +146,13 @@ public class DiscoCache {
         }
 
         minNodeVer = minVer;
+    }
+
+    /**
+     * @return
+     */
+    public AffinityTopologyVersion version() {
+        return topVer;
     }
 
     /**

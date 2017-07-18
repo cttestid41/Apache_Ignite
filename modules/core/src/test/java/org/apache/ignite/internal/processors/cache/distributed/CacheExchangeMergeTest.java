@@ -67,8 +67,14 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }
 
         cfg.setCacheConfiguration(
-            cacheConfiguration("c1", ATOMIC),
-            cacheConfiguration("c2", TRANSACTIONAL));
+            cacheConfiguration("c1", ATOMIC, 0),
+            cacheConfiguration("c2", ATOMIC, 1),
+            cacheConfiguration("c3", ATOMIC, 2),
+            cacheConfiguration("c4", ATOMIC, 10),
+            cacheConfiguration("c5", TRANSACTIONAL, 0),
+            cacheConfiguration("c6", TRANSACTIONAL, 1),
+            cacheConfiguration("c7", TRANSACTIONAL, 2),
+            cacheConfiguration("c8", TRANSACTIONAL, 10));
 
         return cfg;
     }
@@ -83,13 +89,15 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @param name Cache name.
      * @param atomicityMode Cache atomicity mode.
+     * @param backups Number of backups.
      * @return Cache configuration.
      */
-    private CacheConfiguration cacheConfiguration(String name, CacheAtomicityMode atomicityMode) {
+    private CacheConfiguration cacheConfiguration(String name, CacheAtomicityMode atomicityMode, int backups) {
         CacheConfiguration ccfg = new CacheConfiguration(name);
 
         ccfg.setAtomicityMode(atomicityMode);
         ccfg.setWriteSynchronizationMode(FULL_SYNC);
+        ccfg.setBackups(backups);
 
         return ccfg;
     }
@@ -246,7 +254,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         assertTrue(nodes.size() > 0);
 
-        String[] cacheNames = {"c1", "c2"};
+        String[] cacheNames = {"c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"};
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
 

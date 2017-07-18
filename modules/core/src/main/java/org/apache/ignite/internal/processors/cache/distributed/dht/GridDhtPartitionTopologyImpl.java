@@ -1118,6 +1118,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             if (stopping)
                 return false;
 
+            if (exchangeVer == null && !topReadyFut.isDone())
+                return false;
+
             if (exchangeVer != null) {
                 assert exchangeVer.compareTo(topVer) >= 0 : exchangeVer;
 

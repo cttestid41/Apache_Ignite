@@ -135,6 +135,12 @@ public class CacheGroupAffinityMessage implements Message {
         return cachesAff;
     }
 
+    /**
+     * @param assign Nodes orders.
+     * @param nodesByOrder Nodes by order cache.
+     * @param discoCache Discovery data cache.
+     * @return Nodes list.
+     */
     public static List<ClusterNode> toNodes(GridLongList assign, Map<Long, ClusterNode> nodesByOrder, DiscoCache discoCache) {
         List<ClusterNode> assign0 = new ArrayList<>(assign.size());
 
@@ -146,7 +152,8 @@ public class CacheGroupAffinityMessage implements Message {
             if (affNode == null) {
                 affNode = discoCache.serverNodeByOrder(order);
 
-                assert affNode != null : order;
+                assert affNode != null : "Failed to find node by order [order=" + order +
+                    ", topVer=" + discoCache.version() + ']';
 
                 nodesByOrder.put(order, affNode);
             }
