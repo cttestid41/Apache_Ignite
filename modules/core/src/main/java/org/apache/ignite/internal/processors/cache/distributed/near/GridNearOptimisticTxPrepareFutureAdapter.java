@@ -107,7 +107,7 @@ public abstract class GridNearOptimisticTxPrepareFutureAdapter extends GridNearT
             }
 
             if (topFut.isDone()) {
-                topVer = topFut.topologyVersion();
+                topVer = topFut.resultTopologyVersion();
 
                 if (remap)
                     tx.onRemap(topVer);

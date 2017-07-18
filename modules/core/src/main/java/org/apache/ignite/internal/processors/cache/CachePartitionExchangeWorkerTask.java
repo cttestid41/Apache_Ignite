@@ -21,5 +21,5 @@ package org.apache.ignite.internal.processors.cache;
  * Cache partition exchange worker task marker interface.
  */
 public interface CachePartitionExchangeWorkerTask {
-    // No-op.
+    boolean skipForExchangeMerge();
 }

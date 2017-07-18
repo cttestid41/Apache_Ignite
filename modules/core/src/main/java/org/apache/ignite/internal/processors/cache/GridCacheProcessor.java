@@ -2103,11 +2103,11 @@ public class GridCacheProcessor extends GridProcessorAdapter {
      */
     @SuppressWarnings("unchecked")
     public void onExchangeDone(
-        AffinityTopologyVersion topVer,
+        AffinityTopologyVersion cacheStartVer,
         @Nullable ExchangeActions exchActions,
         @Nullable Throwable err
     ) {
-        initCacheProxies(topVer, err);
+        initCacheProxies(cacheStartVer, err);
 
         if (exchActions == null)
             return;

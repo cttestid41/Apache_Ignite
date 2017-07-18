@@ -39,6 +39,8 @@ public interface GridDhtTopologyFuture extends IgniteInternalFuture<AffinityTopo
      */
     public AffinityTopologyVersion topologyVersion();
 
+    public AffinityTopologyVersion resultTopologyVersion();
+
     /**
      * Returns error is cache topology is not valid.
      *

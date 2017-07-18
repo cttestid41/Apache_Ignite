@@ -640,7 +640,7 @@ public class GridNearAtomicUpdateFuture extends GridNearAtomicAbstractUpdateFutu
                 return;
             }
 
-            topVer = fut.topologyVersion();
+            topVer = fut.resultTopologyVersion();
         }
         else {
             assert !topLocked : this;

@@ -23,6 +23,8 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.Gri
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
+
 /**
  *
  */
@@ -40,17 +42,22 @@ public class ExchangeContext {
     private final ExchangeDiscoveryEvents evts;
 
     /**
-     * @param protocolVer Protocol version.
      * @param fut Exchange future.
      */
-    public ExchangeContext(int protocolVer, GridDhtPartitionsExchangeFuture fut) {
+    public ExchangeContext(GridDhtPartitionsExchangeFuture fut) {
+        int protocolVer = GridCachePartitionExchangeManager.exchangeProtocolVersion(
+            fut.discoCache().minimumNodeVersion());
+
         fetchAffOnJoin = protocolVer == 1;
 
-        merge = protocolVer > 1;
+        merge = protocolVer > 1 && fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
 
         evts = new ExchangeDiscoveryEvents(fut);
     }
 
+    /**
+     * @return Discovery events.
+     */
     public ExchangeDiscoveryEvents events() {
         return evts;
     }
@@ -80,7 +87,7 @@ public class ExchangeContext {
         return requestGrpsAffOnJoin;
     }
 
-    public boolean canMergeExchanges() {
+    public boolean mergeExchanges() {
         return merge;
     }
 }

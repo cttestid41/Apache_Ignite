@@ -56,6 +56,10 @@ public class ClientCacheDhtTopologyFuture extends GridDhtTopologyFutureAdapter
         onDone(e);
     }
 
+    @Override public AffinityTopologyVersion resultTopologyVersion() {
+        return topologyVersion();
+    }
+
     /**
      * @param grp Cache group.
      * @param topNodes Topology nodes.

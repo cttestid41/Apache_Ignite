@@ -286,6 +286,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             long updateSeq = this.updateSeq.incrementAndGet();
 
+            topVer = exchFut.context().events().topologyVersion();
+
             initPartitions0(exchFut, updateSeq);
 
             consistencyCheck();
@@ -493,15 +495,17 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         }
                     }
 
-                    if (grpStarted ||
-                        exchFut.discoveryEvent().type() == EVT_DISCOVERY_CUSTOM_EVT ||
-                        exchFut.serverNodeDiscoveryEvent()) {
-                        if (affReady)
-                            initPartitions0(exchFut, updateSeq);
-                        else {
-                            List<List<ClusterNode>> aff = grp.affinity().idealAssignment();
+                    if (grp.affinityNode()) {
+                        if (grpStarted ||
+                            exchFut.discoveryEvent().type() == EVT_DISCOVERY_CUSTOM_EVT ||
+                            exchFut.serverNodeDiscoveryEvent()) {
+                            if (affReady)
+                                initPartitions0(exchFut, updateSeq);
+                            else {
+                                List<List<ClusterNode>> aff = grp.affinity().idealAssignment();
 
-                            createPartitions(aff, updateSeq);
+                                createPartitions(aff, updateSeq);
+                            }
                         }
                     }
 
