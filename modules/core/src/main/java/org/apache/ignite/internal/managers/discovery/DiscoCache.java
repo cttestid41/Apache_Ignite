@@ -90,6 +90,7 @@ public class DiscoCache {
     private final AffinityTopologyVersion topVer;
 
     /**
+     * @param topVer Topology version.
      * @param state Current cluster state.
      * @param loc Local node.
      * @param rmtNodes Remote nodes.
@@ -149,7 +150,7 @@ public class DiscoCache {
     }
 
     /**
-     * @return
+     * @return Topology version.
      */
     public AffinityTopologyVersion version() {
         return topVer;

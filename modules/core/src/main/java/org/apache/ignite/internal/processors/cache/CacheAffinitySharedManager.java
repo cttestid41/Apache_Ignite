@@ -528,11 +528,13 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         for (DynamicCacheDescriptor desc : startDescs) {
-            CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
+            if (desc.cacheConfiguration().getCacheMode() != LOCAL) {
+                CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
 
-            assert grp != null;
+                assert grp != null;
 
-            grp.topology().onExchangeDone(grp.affinity().cachedAffinity(topVer), true);
+                grp.topology().onExchangeDone(grp.affinity().cachedAffinity(topVer), true);
+            }
         }
 
         cctx.cache().initCacheProxies(topVer, null);
@@ -1365,6 +1367,50 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             true);
 
         return CacheGroupAffinityMessage.createAffinityDiffMessages(diff);
+    }
+
+    /**
+     * @param fut Exchange future.
+     * @param msg Message.
+     */
+    public void onLocalJoin(final GridDhtPartitionsExchangeFuture fut, GridDhtPartitionsFullMessage msg) {
+        final Set<Integer> affReq = fut.context().groupsAffinityRequestOnJoin();
+
+        if (F.isEmpty(affReq))
+            return;
+
+        final Map<Long, ClusterNode> nodesByOrder = new HashMap<>();
+
+        final Map<Integer, CacheGroupAffinityMessage> joinedNodeAff = msg.joinedNodeAffinity();
+
+        assert !F.isEmpty(joinedNodeAff) : msg;
+        assert joinedNodeAff.size() >= affReq.size();
+
+        forAllCacheGroups(false, new IgniteInClosureX<GridAffinityAssignmentCache>() {
+            @Override public void applyx(GridAffinityAssignmentCache aff) throws IgniteCheckedException {
+                if (affReq.contains(aff.groupId())) {
+                    assert AffinityTopologyVersion.NONE.equals(aff.lastVersion());
+
+                    CacheGroupAffinityMessage affMsg = joinedNodeAff.get(aff.groupId());
+
+                    assert affMsg != null;
+
+                    List<List<ClusterNode>> assignments = affMsg.createAssignments(nodesByOrder, fut.discoCache());
+
+                    // Calculate ideal assignments.
+                    if (!aff.centralizedAffinityFunction())
+                        aff.calculate(fut.topologyVersion(), fut.discoveryEvent(), fut.discoCache());
+
+                    aff.initialize(fut.topologyVersion(), assignments);
+
+                    CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
+
+                    assert grp != null;
+
+                    grp.topology().initPartitions(fut);
+                }
+            }
+        });
     }
 
     /**

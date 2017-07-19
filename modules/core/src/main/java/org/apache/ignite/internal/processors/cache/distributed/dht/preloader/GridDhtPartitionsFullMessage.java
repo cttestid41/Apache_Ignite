@@ -180,14 +180,14 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     }
 
     /**
-     * @return
+     * @return Caches affinity for joining nodes.
      */
     @Nullable public Map<Integer, CacheGroupAffinityMessage> joinedNodeAffinity() {
         return joinedNodeAff;
     }
 
     /**
-     * @param joinedNodeAff
+     * @param joinedNodeAff Caches affinity for joining nodes.
      */
     void joinedNodeAffinity(Map<Integer, CacheGroupAffinityMessage> joinedNodeAff) {
         this.joinedNodeAff = joinedNodeAff;

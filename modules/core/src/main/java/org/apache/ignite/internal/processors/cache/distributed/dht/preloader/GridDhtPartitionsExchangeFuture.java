@@ -240,6 +240,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private ExchangeContext exchCtx;
 
     /** */
+    @GridToStringExclude
     private FinishState finishState;
 
     /**
@@ -943,7 +944,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                 continue;
 
-            if (!localJoinExchange() || grp.affinity().lastVersion().topologyVersion() > 0)
+            // It is possible affinity is not initialized yet if node joins to cluster.
+            if (grp.affinity().lastVersion().topologyVersion() > 0)
                 grp.topology().beforeExchange(this, !centralizedAff);
         }
 
@@ -1264,6 +1266,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /**
      * @param nodes Nodes.
+     * @param joinedNodeAff Affinity if was requested by some nodes.
      * @throws IgniteCheckedException If failed.
      */
     private void sendAllPartitions(Collection<ClusterNode> nodes,
@@ -2376,7 +2379,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
 
                 if (localJoinExchange())
-                    cctx.affinity().onJoin(this, msg);
+                    cctx.affinity().onLocalJoin(this, msg);
                 else {
                     if (exchCtx.events().serverLeft())
                         cctx.affinity().mergeExchangesOnServerLeft(this, msg);
