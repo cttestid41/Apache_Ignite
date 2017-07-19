@@ -2256,23 +2256,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             return super.values();
         }
 
-        /**
-         * @param exchangeId Exchange ID.
-         * @return Future.
-         */
-        public synchronized GridDhtPartitionsExchangeFuture find(GridDhtPartitionExchangeId exchangeId) {
-            ListIterator<GridDhtPartitionsExchangeFuture> it = listIterator(size() - 1);
-
-            while (it.hasPrevious()) {
-                GridDhtPartitionsExchangeFuture fut0 = it.previous();
-
-                if (fut0.exchangeId().equals(exchangeId))
-                    return fut0;
-            }
-
-            return null;
-        }
-
         /** {@inheritDoc} */
         @Override public synchronized String toString() {
             return S.toString(ExchangeFutureSet.class, this, super.toString());

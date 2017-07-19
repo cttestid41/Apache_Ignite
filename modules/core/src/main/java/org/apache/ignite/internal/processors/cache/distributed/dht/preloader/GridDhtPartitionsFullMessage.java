@@ -103,8 +103,8 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     private transient boolean compress;
 
     /** */
-    @GridDirectCollection(CacheGroupAffinityMessage.class)
-    private Collection<CacheGroupAffinityMessage> cachesAff;
+    @GridDirectMap(keyType = Integer.class, valueType = CacheGroupAffinityMessage.class)
+    private Map<Integer, CacheGroupAffinityMessage> joinedNodeAff;
 
     /**
      * Required by {@link Externalizable}.
@@ -148,37 +148,32 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         cp.partsToReload = partsToReload;
         cp.partsToReloadBytes = partsToReloadBytes;
         cp.topVer = topVer;
-        cp.cachesAff = cachesAff;
+        cp.joinedNodeAff = joinedNodeAff;
     }
 
     /**
-     * @param cachesAff Affinity.
      * @return Message copy.
      */
-    GridDhtPartitionsFullMessage copyWithAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
-        assert !F.isEmpty(cachesAff) : cachesAff;
-
+    GridDhtPartitionsFullMessage copy() {
         GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
 
         copyStateTo(cp);
-
-        cp.cachesAff = cachesAff;
 
         return cp;
     }
 
     /**
-     * @return Affinity.
+     * @return Caches affinity for joining nodes.
      */
-    @Nullable Collection<CacheGroupAffinityMessage> cachesAffinity() {
-        return cachesAff;
+    @Nullable public Map<Integer, CacheGroupAffinityMessage> joinedNodeAffinity() {
+        return joinedNodeAff;
     }
 
     /**
-     * @param cachesAff Affinity.
+     * @param joinedNodeAff Caches affinity for joining nodes.
      */
-    void cachesAffinity(Collection<CacheGroupAffinityMessage> cachesAff) {
-        this.cachesAff = cachesAff;
+    void joinedNodeAffinity(Map<Integer, CacheGroupAffinityMessage> joinedNodeAff) {
+        this.joinedNodeAff = joinedNodeAff;
     }
 
     /** {@inheritDoc} */
@@ -461,11 +456,6 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         }
 
         switch (writer.state()) {
-            case 5:
-                if (!writer.writeCollection("cachesAff", cachesAff, MessageCollectionItemType.MSG))
-                    return false;
-
-                writer.incrementState();
 
             case 6:
                 if (!writer.writeMap("dupPartsData", dupPartsData, MessageCollectionItemType.INT, MessageCollectionItemType.INT))
@@ -525,13 +515,6 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
             return false;
 
         switch (reader.state()) {
-            case 5:
-                cachesAff = reader.readCollection("cachesAff", MessageCollectionItemType.MSG);
-
-                if (!reader.isLastRead())
-                    return false;
-
-                reader.incrementState();
 
             case 6:
                 dupPartsData = reader.readMap("dupPartsData", MessageCollectionItemType.INT, MessageCollectionItemType.INT, false);

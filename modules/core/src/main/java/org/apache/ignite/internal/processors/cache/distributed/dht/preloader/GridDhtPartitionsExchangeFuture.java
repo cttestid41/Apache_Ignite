@@ -227,6 +227,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private ExchangeContext exchCtx;
 
     /** */
+    @GridToStringExclude
     private FinishState finishState;
 
     /**
@@ -873,7 +874,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                 continue;
 
-            if (!localJoinExchange() || grp.affinity().lastVersion().topologyVersion() > 0)
+            // It is possible affinity is not initialized yet if node joins to cluster.
+            if (grp.affinity().lastVersion().topologyVersion() > 0)
                 grp.topology().beforeExchange(this, !centralizedAff);
         }
 

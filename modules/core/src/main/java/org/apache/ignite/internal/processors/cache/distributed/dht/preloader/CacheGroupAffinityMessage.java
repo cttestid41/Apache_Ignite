@@ -45,9 +45,6 @@ public class CacheGroupAffinityMessage implements Message {
     private static final long serialVersionUID = 0L;
 
     /** */
-    private int grpId;
-
-    /** */
     @GridDirectCollection(GridLongList.class)
     private List<GridLongList> assigns;
 
@@ -59,12 +56,9 @@ public class CacheGroupAffinityMessage implements Message {
     }
 
     /**
-     * @param grpId Group ID.
      * @param assign0 Assignment.
      */
-    private CacheGroupAffinityMessage(int grpId, List<List<ClusterNode>> assign0) {
-        this.grpId = grpId;
-
+    private CacheGroupAffinityMessage(List<List<ClusterNode>> assign0) {
         assigns = new ArrayList<>(assign0.size());
 
         for (int i = 0; i < assign0.size(); i++) {
@@ -77,13 +71,6 @@ public class CacheGroupAffinityMessage implements Message {
 
             assigns.add(l);
         }
-    }
-
-    /**
-     * @return Cache group ID.
-     */
-    int groupId() {
-        return grpId;
     }
 
     /**
@@ -115,34 +102,46 @@ public class CacheGroupAffinityMessage implements Message {
     }
 
     /**
+     * @param assign Nodes orders.
+     * @param nodesByOrder Nodes by order cache.
+     * @param discoCache Discovery data cache.
+     * @return Nodes list.
+     */
+    public static List<ClusterNode> toNodes(GridLongList assign, Map<Long, ClusterNode> nodesByOrder, DiscoCache discoCache) {
+        List<ClusterNode> assign0 = new ArrayList<>(assign.size());
+
+        for (int n = 0; n < assign.size(); n++) {
+            long order = assign.get(n);
+
+            ClusterNode affNode = nodesByOrder.get(order);
+
+            if (affNode == null) {
+                affNode = discoCache.serverNodeByOrder(order);
+
+                assert affNode != null : "Failed to find node by order [order=" + order +
+                    ", topVer=" + discoCache.version() + ']';
+
+                nodesByOrder.put(order, affNode);
+            }
+
+            assign0.add(affNode);
+        }
+
+        return assign0;
+    }
+
+    /**
      * @param nodesByOrder Nodes by order cache.
      * @param discoCache Discovery data cache.
      * @return Assignments.
      */
-    List<List<ClusterNode>> createAssignments(Map<Long, ClusterNode> nodesByOrder, DiscoCache discoCache) {
+    public List<List<ClusterNode>> createAssignments(Map<Long, ClusterNode> nodesByOrder, DiscoCache discoCache) {
         List<List<ClusterNode>> assignments0 = new ArrayList<>(assigns.size());
 
         for (int p = 0; p < assigns.size(); p++) {
             GridLongList assign = assigns.get(p);
-            List<ClusterNode> assign0 = new ArrayList<>(assign.size());
 
-            for (int n = 0; n < assign.size(); n++) {
-                long order = assign.get(n);
-
-                ClusterNode affNode = nodesByOrder.get(order);
-
-                if (affNode == null) {
-                    affNode = discoCache.serverNodeByOrder(order);
-
-                    assert affNode != null : order;
-
-                    nodesByOrder.put(order, affNode);
-                }
-
-                assign0.add(affNode);
-            }
-
-            assignments0.add(assign0);
+            assignments0.add(toNodes(assign, nodesByOrder, discoCache));
         }
 
         return assignments0;
@@ -167,12 +166,6 @@ public class CacheGroupAffinityMessage implements Message {
 
                 writer.incrementState();
 
-            case 1:
-                if (!writer.writeInt("grpId", grpId))
-                    return false;
-
-                writer.incrementState();
-
         }
 
         return true;
@@ -188,14 +181,6 @@ public class CacheGroupAffinityMessage implements Message {
         switch (reader.state()) {
             case 0:
                 assigns = reader.readCollection("assigns", MessageCollectionItemType.MSG);
-
-                if (!reader.isLastRead())
-                    return false;
-
-                reader.incrementState();
-
-            case 1:
-                grpId = reader.readInt("grpId");
 
                 if (!reader.isLastRead())
                     return false;
