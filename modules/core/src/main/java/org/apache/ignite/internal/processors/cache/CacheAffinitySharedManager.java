@@ -518,11 +518,13 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         for (DynamicCacheDescriptor desc : startDescs) {
-            CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
+            if (desc.cacheConfiguration().getCacheMode() != LOCAL) {
+                CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
 
-            assert grp != null;
+                assert grp != null;
 
-            grp.topology().onExchangeDone(grp.affinity().cachedAffinity(topVer), true);
+                grp.topology().onExchangeDone(grp.affinity().cachedAffinity(topVer), true);
+            }
         }
 
         cctx.cache().initCacheProxies(topVer, null);
