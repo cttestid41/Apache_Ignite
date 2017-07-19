@@ -1375,7 +1375,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (!done.compareAndSet(false, true))
             return false;
 
-        log.info("Finish exchange future [startVer=" + topologyVersion() + ", resVer=" + res + ']');
+        log.info("Finish exchange future [startVer=" + topologyVersion() + ", resVer=" + res + ", err=" + err + ']');
 
         assert res != null || err != null;
 
