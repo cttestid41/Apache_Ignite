@@ -94,7 +94,7 @@ public class CacheGroupAffinityMessage implements Message {
             if (!cachesAff.containsKey(grpId)) {
                 List<List<ClusterNode>> assign = cctx.affinity().affinity(grpId).assignments(topVer);
 
-                cachesAff.put(grpId, new CacheGroupAffinityMessage(grpId, assign));
+                cachesAff.put(grpId, new CacheGroupAffinityMessage(assign));
             }
         }
 
@@ -199,7 +199,7 @@ public class CacheGroupAffinityMessage implements Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 2;
+        return 1;
     }
 
     /** {@inheritDoc} */

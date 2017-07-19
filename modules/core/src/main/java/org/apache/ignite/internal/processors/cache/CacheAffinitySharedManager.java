@@ -51,8 +51,10 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtAffini
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtAssignmentFetchFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionTopology;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.CacheGroupAffinityMessage;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionFullMap;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateFinishMessage;
 import org.apache.ignite.internal.processors.cluster.DiscoveryDataClusterState;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
@@ -1243,6 +1245,50 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         assert grpHolder != null : debugGroupName(grpId);
 
         return grpHolder.affinity();
+    }
+
+    /**
+     * @param fut Exchange future.
+     * @param msg Message.
+     */
+    public void onLocalJoin(final GridDhtPartitionsExchangeFuture fut, GridDhtPartitionsFullMessage msg) {
+        final Set<Integer> affReq = fut.context().groupsAffinityRequestOnJoin();
+
+        if (F.isEmpty(affReq))
+            return;
+
+        final Map<Long, ClusterNode> nodesByOrder = new HashMap<>();
+
+        final Map<Integer, CacheGroupAffinityMessage> joinedNodeAff = msg.joinedNodeAffinity();
+
+        assert !F.isEmpty(joinedNodeAff) : msg;
+        assert joinedNodeAff.size() >= affReq.size();
+
+        forAllCacheGroups(false, new IgniteInClosureX<GridAffinityAssignmentCache>() {
+            @Override public void applyx(GridAffinityAssignmentCache aff) throws IgniteCheckedException {
+                if (affReq.contains(aff.groupId())) {
+                    assert AffinityTopologyVersion.NONE.equals(aff.lastVersion());
+
+                    CacheGroupAffinityMessage affMsg = joinedNodeAff.get(aff.groupId());
+
+                    assert affMsg != null;
+
+                    List<List<ClusterNode>> assignments = affMsg.createAssignments(nodesByOrder, fut.discoCache());
+
+                    // Calculate ideal assignments.
+                    if (!aff.centralizedAffinityFunction())
+                        aff.calculate(fut.topologyVersion(), fut.discoveryEvent(), fut.discoCache());
+
+                    aff.initialize(fut.topologyVersion(), assignments);
+
+                    CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
+
+                    assert grp != null;
+
+                    grp.topology().initPartitions(fut);
+                }
+            }
+        });
     }
 
     /**
