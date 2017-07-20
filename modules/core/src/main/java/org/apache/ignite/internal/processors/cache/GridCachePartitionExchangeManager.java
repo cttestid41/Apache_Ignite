@@ -1431,7 +1431,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 null,
                 null);
 
-            exchFut.processSinglePartitionRequest(node, msg);
+            exchFut.onReceivePartitionRequest(node, msg);
         }
         finally {
             leaveBusy();
