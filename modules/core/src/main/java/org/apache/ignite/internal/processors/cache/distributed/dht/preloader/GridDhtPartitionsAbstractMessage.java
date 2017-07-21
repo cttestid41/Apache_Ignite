@@ -34,7 +34,10 @@ import org.jetbrains.annotations.Nullable;
  */
 public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage {
     /** */
-    protected static final byte COMPRESSED_FLAG_MASK = 1;
+    private static final byte COMPRESSED_FLAG_MASK = 0x01;
+
+    /** */
+    private static final byte RESTORE_STATE_FLAG_MASK = 0x02;
 
     /** */
     private static final long serialVersionUID = 0L;
@@ -46,7 +49,7 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
     private GridCacheVersion lastVer;
 
     /** */
-    private byte flags;
+    protected byte flags;
 
     /**
      * Required by {@link Externalizable}.
@@ -129,6 +132,14 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
      */
     protected final void compressed(boolean compressed) {
         flags = compressed ? (byte)(flags | COMPRESSED_FLAG_MASK) : (byte)(flags & ~COMPRESSED_FLAG_MASK);
+    }
+
+    public void restoreState(boolean restoreState) {
+        flags = restoreState ? (byte)(flags | RESTORE_STATE_FLAG_MASK) : (byte)(flags & ~RESTORE_STATE_FLAG_MASK);
+    }
+
+    boolean restoreState() {
+        return (flags & RESTORE_STATE_FLAG_MASK) != 0;
     }
 
     /** {@inheritDoc} */

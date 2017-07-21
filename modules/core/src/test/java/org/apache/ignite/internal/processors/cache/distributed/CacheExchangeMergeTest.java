@@ -18,7 +18,9 @@
 package org.apache.ignite.internal.processors.cache.distributed;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
@@ -37,6 +39,7 @@ import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
+import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
@@ -117,6 +120,58 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         ccfg.setBackups(backups);
 
         return ccfg;
+    }
+
+    // TODO IGNITE-5578 joined merged node failed (client/server).
+    // TODO IGNITE-5578 random topology changes, random delay for exchange messages.
+    // TODO IGNITE-5578 check exchanges/affinity consistency.
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testConcurrentStartServers() throws Exception {
+        concurrentStart(false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testConcurrentStartServersAndClients() throws Exception {
+        concurrentStart(true);
+    }
+
+    /**
+     * @param withClients If {@code true} also starts client nodes.
+     * @throws Exception If failed.
+     */
+    private void concurrentStart(final boolean withClients) throws Exception {
+        for (int i = 0; i < 10; i++) {
+            log.info("Iteration: " + i);
+
+            startGrid(0);
+
+            final AtomicInteger idx = new AtomicInteger(1);
+
+            IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                @Override public Void call() throws Exception {
+                    if (withClients)
+                        client.set(ThreadLocalRandom.current().nextBoolean());
+
+                    Ignite node = startGrid(idx.incrementAndGet());
+
+                    checkNodeCaches(node);
+
+                    return null;
+                }
+            }, 10, "start-node");
+
+            fut.get();
+
+            checkCaches();
+
+            // TODO: stop by one, check caches - in all tests.
+            stopAllGrids();
+        }
     }
 
     /**
@@ -242,15 +297,89 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testNoMergeJoinExchangeCoordinatorChange1() throws Exception {
-        mergeJoinExchangeCoordinatorChange(4, CoordinatorChangeMode.NEW_CRD_RCDV);
+    public void testJoinExchangeCoordinatorChange_NoMerge_1() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            exchangeCoordinatorChangeNoMerge(4, true, mode);
+
+            stopAllGrids();
+        }
     }
 
     /**
      * @throws Exception If failed.
      */
-    private void mergeJoinExchangeCoordinatorChange(int srvs, CoordinatorChangeMode mode) throws Exception {
-        log.info("mergeJoinExchangeCoordinatorChange [nodes=" + srvs + ", mode=" + mode + ']');
+    public void testJoinExchangeCoordinatorChange_NoMerge_2() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            exchangeCoordinatorChangeNoMerge(8, true, mode);
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testFailExchangeCoordinatorChange_NoMerge_1() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            exchangeCoordinatorChangeNoMerge(5, false, mode);
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testFailExchangeCoordinatorChange_NoMerge_2() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            exchangeCoordinatorChangeNoMerge(8, false, mode);
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeExchangeCoordinatorChange() throws Exception {
+        testSpi = true;
+
+        final int srvs = 4;
+
+        Ignite srv0 = startGrids(srvs);
+
+        mergeExchangeWaitVersion(srv0, 6);
+
+        final AtomicInteger idx = new AtomicInteger(srvs);
+
+        CountDownLatch latch = blockExchangeFinish(srv0, 5, F.asList(2, 3, 4, 5), F.asList(1));
+
+        IgniteInternalFuture<?> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+            @Override public Void call() throws Exception {
+                startGrid(idx.getAndIncrement());
+
+                return null;
+            }
+        }, 2, "start-node");
+
+        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+            fail("Failed to wait for expected messages.");
+
+        stopGrid(0);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @param srvs Number of servers.
+     * @param join If {@code true} starts new node, otherwise stops node.
+     * @param mode Tested scenario.
+     * @throws Exception If failed.
+     */
+    private void exchangeCoordinatorChangeNoMerge(int srvs, final boolean join, CoordinatorChangeMode mode) throws Exception {
+        log.info("Test mergeJoinExchangeCoordinatorChange [nodes=" + srvs + ", mode=" + mode + ']');
 
         testSpi = true;
 
@@ -262,7 +391,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         IgniteInternalFuture fut = GridTestUtils.runAsync(new Callable() {
             @Override public Object call() throws Exception {
-                startGrid(nodes);
+                if (join)
+                    startGrid(nodes);
+                else
+                    stopGrid(nodes - 1);
 
                 return null;
             }
@@ -280,13 +412,19 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         checkCaches();
     }
 
+    /**
+     * @param srvs Number of server nodes.
+     * @param mode Test scenario.
+     * @return Awaited state latch.
+     * @throws Exception If failed.
+     */
     private CountDownLatch blockExchangeFinish(int srvs, CoordinatorChangeMode mode) throws Exception {
         Ignite crd = ignite(0);
 
         long topVer = srvs + 1;
 
         switch (mode) {
-            case NON_RCVD: {
+            case NOBODY_RCVD: {
                 blockExchangeFinish(crd, topVer);
 
                 break;
@@ -314,9 +452,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     /**
-     * @param srvs
-     * @param waitNodes
-     * @return
+     * @param srvs Number of servers.
+     * @param waitNodes Nodes which should receive message.
+     * @return Blocked nodes indexes.
      */
     private List<Integer> blockNodes(int srvs, List<Integer> waitNodes) {
         List<Integer> block = new ArrayList<>();
@@ -327,20 +465,6 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }
 
         return block;
-    }
-
-    /**
-     *
-     */
-    enum CoordinatorChangeMode {
-        /** */
-        NON_RCVD,
-
-        /** */
-        NEW_CRD_RCDV,
-
-        /** */
-        NON_CRD_RCVD
     }
 
     /**
@@ -366,6 +490,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @param crd Exchange coordinator.
      * @param topVer Exchange topology version.
+     * @param blockNodes Nodes which do not receive messages.
+     * @param waitMsgNodes Nodes which should receive messages.
+     * @return Awaited state latch.
      */
     private CountDownLatch blockExchangeFinish(Ignite crd,
         long topVer,
@@ -385,7 +512,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                 if (msg instanceof GridDhtPartitionsFullMessage) {
                     GridDhtPartitionsFullMessage msg0 = (GridDhtPartitionsFullMessage)msg;
 
-                    if (msg0.exchangeId() == null || !msg0.exchangeId().topologyVersion().equals(topVer0))
+                    if (msg0.exchangeId() == null || msg0.exchangeId().topologyVersion().compareTo(topVer0) < 0)
                         return false;
 
                     String name = node.attribute(IgniteNodeAttributes.ATTR_IGNITE_INSTANCE_NAME);
@@ -426,7 +553,11 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     private void checkCaches() throws Exception {
+        checkAffinity();
+
         checkCaches0();
+
+        checkAffinity();
 
         awaitPartitionMapExchange();
 
@@ -441,25 +572,74 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         assertTrue(nodes.size() > 0);
 
+        for (Ignite node : nodes)
+            checkNodeCaches(node);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    private void checkAffinity() throws Exception {
+        List<Ignite> nodes = G.allGrids();
+
+        ClusterNode crdNode = null;
+
+        for (Ignite node : nodes) {
+            ClusterNode locNode = node.cluster().localNode();
+
+            if (crdNode == null || locNode.order() < crdNode.order())
+                crdNode = locNode;
+        }
+
+        AffinityTopologyVersion topVer = ((IgniteKernal)grid(crdNode)).
+            context().cache().context().exchange().readyAffinityVersion();
+
+        Map<String, List<List<ClusterNode>>> affMap = new HashMap<>();
+
+        for (Ignite node : nodes) {
+            IgniteKernal node0 = (IgniteKernal)node;
+
+            for (IgniteInternalCache cache : node0.context().cache().caches()) {
+                List<List<ClusterNode>> aff = affMap.get(cache.name());
+                List<List<ClusterNode>> aff0 = cache.context().affinity().assignments(topVer);
+
+                if (aff != null)
+                    assertEquals(aff, aff0);
+                else
+                    affMap.put(cache.name(), aff0);
+            }
+        }
+    }
+
+    /**
+     * @param node Node.
+     */
+    private void checkNodeCaches(Ignite node) {
         String[] cacheNames = {"c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"};
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
-        for (Ignite node : nodes) {
-            for (String cacheName : cacheNames) {
-                IgniteCache<Object, Object> cache = node.cache(cacheName);
+        for (String cacheName : cacheNames) {
+            IgniteCache<Object, Object> cache = node.cache(cacheName);
 
-                assertNotNull("No cache [node=" + node.name() +
-                    ", order=" + node.cluster().localNode().order() +
-                    ", cache=" + cacheName + ']', cache);
+            // TODO: multithreaded, putAll and transactions.
 
-                for (int i = 0; i < 10; i++) {
-                    Integer key = rnd.nextInt(100_000);
+            assertNotNull("No cache [node=" + node.name() +
+                ", client=" + node.configuration().isClientMode() +
+                ", order=" + node.cluster().localNode().order() +
+                ", cache=" + cacheName + ']', cache);
 
-                    cache.put(key, i);
+            String err = "Invalid value [node=" + node.name() +
+                ", client=" + node.configuration().isClientMode() +
+                ", order=" + node.cluster().localNode().order() +
+                ", cache=" + cacheName + ']';
 
-                    assertEquals(i, cache.get(key));
-                }
+            for (int i = 0; i < 10; i++) {
+                Integer key = rnd.nextInt(100_000);
+
+                cache.put(key, i);
+
+                assertEquals(err, i, cache.get(key));
             }
         }
     }
@@ -479,5 +659,26 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }, 5000);
 
         assertTrue(wait);
+    }
+
+    /**
+     *
+     */
+    enum CoordinatorChangeMode {
+        /**
+         * Coordinator failed, did not send full message.
+         */
+        NOBODY_RCVD,
+
+        /**
+         * Coordinator failed, but new coordinator received full message
+         * and finished exchange.
+         */
+        NEW_CRD_RCDV,
+
+        /**
+         * Coordinator failed, but one of servers (not new coordinator) received full message.
+         */
+        NON_CRD_RCVD
     }
 }

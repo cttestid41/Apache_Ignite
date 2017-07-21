@@ -598,7 +598,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
      * @param ver Node version.
      * @return Supported exchange protocol version.
      */
-    static int exchangeProtocolVersion(IgniteProductVersion ver) {
+    public static int exchangeProtocolVersion(IgniteProductVersion ver) {
         if (ver.compareToIgnoreTimestamp(EXCHANGE_PROTOCOL_2_SINCE) >= 0)
             return 2;
 
@@ -1884,6 +1884,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         /** Busy flag used as performance optimization to stop current preloading. */
         private volatile boolean busy;
 
+        /** */
+        private boolean crd;
+
         /**
          * Constructor.
          */
@@ -2112,7 +2115,15 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                             lastInitializedFut = exchFut;
 
-                            exchFut.init();
+                            boolean newCrd = false;
+
+                            if (!crd) {
+                                List<ClusterNode> srvNodes = exchFut.discoCache().serverNodes();
+
+                                crd = newCrd = !srvNodes.isEmpty() && srvNodes.get(0).isLocal();
+                            }
+
+                            exchFut.init(newCrd);
 
                             int dumpCnt = 0;
 
