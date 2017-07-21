@@ -44,6 +44,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.TxDeadlock;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
 import org.apache.ignite.internal.util.future.GridEmbeddedFuture;
@@ -184,6 +185,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
     /** {@inheritDoc} */
     @Override public void onResult(UUID nodeId, GridNearTxPrepareResponse res) {
         if (!isDone()) {
+            tx.collectNodeTrace(nodeId, res.nodeTrace());
+
             MiniFuture mini = miniFuture(res.miniId());
 
             if (mini != null) {
@@ -535,7 +538,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                     tx.subjectId(),
                     tx.taskNameHash(),
                     m.clientFirst(),
-                    tx.activeCachesDeploymentEnabled());
+                    tx.activeCachesDeploymentEnabled(),
+                    cctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null);
 
                 for (IgniteTxEntry txEntry : m.entries()) {
                     if (txEntry.op() == TRANSFORM)

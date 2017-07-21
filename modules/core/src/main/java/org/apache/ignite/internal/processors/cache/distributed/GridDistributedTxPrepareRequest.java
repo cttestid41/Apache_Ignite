@@ -38,6 +38,8 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxState;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxStateAware;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.UUIDCollectionMessage;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -56,7 +58,8 @@ import org.jetbrains.annotations.Nullable;
  * Transaction prepare request for optimistic and eventually consistent
  * transactions.
  */
-public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage implements IgniteTxStateAware {
+public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
+    implements IgniteTxStateAware, IgniteTraceAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -157,6 +160,9 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage 
     @GridToStringExclude
     private byte flags;
 
+    /** */
+    protected NodeTrace nodeTrace;
+
     /**
      * Required by {@link Externalizable}.
      */
@@ -184,7 +190,8 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage 
         boolean retVal,
         boolean last,
         boolean onePhaseCommit,
-        boolean addDepInfo
+        boolean addDepInfo,
+        NodeTrace nodeTrace
     ) {
         super(tx.xidVersion(), 0, addDepInfo);
 
@@ -199,6 +206,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage 
         this.reads = reads;
         this.writes = writes;
         this.txNodes = txNodes;
+        this.nodeTrace = nodeTrace;
 
         setFlag(tx.system(), SYSTEM_TX_FLAG_MASK);
         setFlag(retVal, NEED_RETURN_VALUE_FLAG_MASK);
@@ -378,6 +386,19 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage 
     /** {@inheritDoc} */
     @Override public void txState(IgniteTxState txState) {
         this.txState = txState;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void recordTracePoint(TracePoint point) {
+        if (nodeTrace != null)
+            nodeTrace.recordTracePoint(point);
+    }
+
+    /**
+     * @return Request trace, if any.
+     */
+    public NodeTrace nodeTrace() {
+        return nodeTrace;
     }
 
     /** {@inheritDoc}

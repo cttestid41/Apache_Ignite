@@ -47,7 +47,6 @@ import org.apache.ignite.internal.managers.indexing.GridIndexingManager;
 import org.apache.ignite.internal.managers.loadbalancer.GridLoadBalancerManager;
 import org.apache.ignite.internal.processors.affinity.GridAffinityProcessor;
 import org.apache.ignite.internal.processors.cache.CacheConflictResolutionManager;
-import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.cache.binary.CacheObjectBinaryProcessorImpl;
 import org.apache.ignite.internal.processors.cacheobject.IgniteCacheObjectProcessor;
@@ -81,6 +80,7 @@ import org.apache.ignite.internal.processors.service.GridServiceProcessor;
 import org.apache.ignite.internal.processors.session.GridTaskSessionProcessor;
 import org.apache.ignite.internal.processors.task.GridTaskProcessor;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
+import org.apache.ignite.internal.processors.trace.TraceProcessor;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.util.IgniteExceptionRegistry;
 import org.apache.ignite.internal.util.StripedExecutor;
@@ -282,6 +282,10 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
     /** */
     @GridToStringExclude
     private DataStructuresProcessor dataStructuresProc;
+
+    /** */
+    @GridToStringExclude
+    private TraceProcessor traceProc;
 
     /** */
     @GridToStringExclude
@@ -580,8 +584,10 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
             poolProc = (PoolProcessor) comp;
         else if (comp instanceof GridMarshallerMappingProcessor)
             mappingProc = (GridMarshallerMappingProcessor)comp;
+        else if (comp instanceof TraceProcessor)
+            traceProc = (TraceProcessor)comp;
         else if (!(comp instanceof DiscoveryNodeValidationProcessor
-                || comp instanceof PlatformPluginProcessor))
+            || comp instanceof PlatformPluginProcessor))
             assert (comp instanceof GridPluginComponent) : "Unknown manager class: " + comp.getClass();
 
         if (addToList)
@@ -835,6 +841,11 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
     }
 
     /** {@inheritDoc} */
+    @Override public TraceProcessor trace() {
+        return traceProc;
+    }
+
+    /** {@inheritDoc} */
     @Override public IgniteLogger log(String ctgr) {
         return config().getGridLogger().getLogger(ctgr);
     }
@@ -1006,7 +1017,7 @@ public class GridKernalContextImpl implements GridKernalContext, Externalizable 
     }
 
     /** {@inheritDoc} */
-    public Map<String, ? extends ExecutorService> customExecutors() {
+    @Override public Map<String, ? extends ExecutorService> customExecutors() {
         return customExecSvcs;
     }
 

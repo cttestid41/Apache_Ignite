@@ -32,12 +32,12 @@ import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.processors.cache.GridCacheCompoundIdentityFuture;
-import org.apache.ignite.internal.processors.cache.GridCacheFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxMapping;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -56,7 +56,7 @@ import static org.apache.ignite.transactions.TransactionState.COMMITTING;
  *
  */
 public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentityFuture<IgniteInternalTx>
-    implements GridCacheFuture<IgniteInternalTx>, IgniteDiagnosticAware {
+    implements IgniteDiagnosticAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -97,12 +97,20 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
     /** Near mappings. */
     private Map<UUID, GridDistributedTxMapping> nearMap;
 
+    /** */
+    private NodeTrace nodeTrace;
+
     /**
      * @param cctx Context.
      * @param tx Transaction.
      * @param commit Commit flag.
      */
-    public GridDhtTxFinishFuture(GridCacheSharedContext<K, V> cctx, GridDhtTxLocalAdapter tx, boolean commit) {
+    public GridDhtTxFinishFuture(
+        GridCacheSharedContext<K, V> cctx,
+        GridDhtTxLocalAdapter tx,
+        boolean commit,
+        NodeTrace nodeTrace
+    ) {
         super(F.<IgniteInternalTx>identityReducer(tx));
 
         this.cctx = cctx;
@@ -118,6 +126,8 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
             msgLog = cctx.txFinishMessageLogger();
             log = U.logger(cctx.kernalContext(), logRef, GridDhtTxFinishFuture.class);
         }
+
+        this.nodeTrace = nodeTrace;
     }
 
     /**
@@ -182,6 +192,8 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
     public void onResult(UUID nodeId, GridDhtTxFinishResponse res) {
         if (!isDone()) {
             boolean found = false;
+
+            tx.collectNodeTrace(nodeId, res.nodeTrace());
 
             for (IgniteInternalFuture<IgniteInternalTx> fut : futures()) {
                 if (isMini(fut)) {
@@ -347,7 +359,8 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                 tx.taskNameHash(),
                 tx.activeCachesDeploymentEnabled(),
                 false,
-                false);
+                false,
+                nodeTrace != null ? new NodeTrace() : null);
 
             try {
                 cctx.io().send(n, req, tx.ioPolicy());
@@ -450,7 +463,8 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                 tx.activeCachesDeploymentEnabled(),
                 updCntrs,
                 false,
-                false);
+                false,
+                nodeTrace != null ? new NodeTrace() : null);
 
             req.writeVersion(tx.writeVersion() != null ? tx.writeVersion() : tx.xidVersion());
 
@@ -519,7 +533,8 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                     tx.taskNameHash(),
                     tx.activeCachesDeploymentEnabled(),
                     false,
-                    false);
+                    false,
+                    nodeTrace != null ? new NodeTrace() : null);
 
                 req.writeVersion(tx.writeVersion());
 

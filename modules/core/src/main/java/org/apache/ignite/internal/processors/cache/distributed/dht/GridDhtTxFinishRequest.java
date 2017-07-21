@@ -26,6 +26,7 @@ import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxFinishRequest;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -121,7 +122,8 @@ public class GridDhtTxFinishRequest extends GridDistributedTxFinishRequest {
         int taskNameHash,
         boolean addDepInfo,
         boolean retVal,
-        boolean waitRemoteTxs
+        boolean waitRemoteTxs,
+        NodeTrace nodeTrace
     ) {
         super(
             xidVer,
@@ -140,7 +142,8 @@ public class GridDhtTxFinishRequest extends GridDistributedTxFinishRequest {
             subjId,
             taskNameHash,
             txSize,
-            addDepInfo);
+            addDepInfo,
+            nodeTrace);
 
         assert miniId != 0;
         assert nearNodeId != null;
@@ -154,6 +157,8 @@ public class GridDhtTxFinishRequest extends GridDistributedTxFinishRequest {
         needReturnValue(retVal);
         waitRemoteTransactions(waitRemoteTxs);
         systemInvalidate(sysInvalidate);
+
+        recordTracePoint(TracePoint.DHT_FINISH_REQUEST_CREATED);
     }
 
     /**
@@ -206,7 +211,8 @@ public class GridDhtTxFinishRequest extends GridDistributedTxFinishRequest {
         boolean addDepInfo,
         Collection<Long> updateIdxs,
         boolean retVal,
-        boolean waitRemoteTxs
+        boolean waitRemoteTxs,
+        NodeTrace nodeTrace
     ) {
         this(nearNodeId,
             futId,
@@ -231,7 +237,8 @@ public class GridDhtTxFinishRequest extends GridDistributedTxFinishRequest {
             taskNameHash,
             addDepInfo,
             retVal,
-            waitRemoteTxs);
+            waitRemoteTxs,
+            nodeTrace);
 
         if (updateIdxs != null && !updateIdxs.isEmpty()) {
             partUpdateCnt = new GridLongList(updateIdxs.size());

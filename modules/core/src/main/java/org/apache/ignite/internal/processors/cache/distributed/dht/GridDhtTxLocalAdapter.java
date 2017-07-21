@@ -41,6 +41,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalAdapter;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.F0;
 import org.apache.ignite.internal.util.GridLeanMap;
 import org.apache.ignite.internal.util.GridLeanSet;
@@ -96,6 +97,9 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     /** Nodes where transactions were started on lock step. */
     private Set<ClusterNode> lockTxNodes;
 
+    /** */
+    protected NodeTrace nodeTrace;
+
     /**
      * Empty constructor required for {@link Externalizable}.
      */
@@ -130,7 +134,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         boolean onePhaseCommit,
         int txSize,
         @Nullable UUID subjId,
-        int taskNameHash
+        int taskNameHash,
+        NodeTrace nodeTrace
     ) {
         super(
             cctx,
@@ -155,6 +160,8 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         this.explicitLock = explicitLock;
 
         threadId = Thread.currentThread().getId();
+
+        this.nodeTrace = nodeTrace;
     }
 
     /**
@@ -829,6 +836,29 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      */
     public final boolean commitOnPrepare() {
         return onePhaseCommit() && !near() && !nearOnOriginatingNode;
+    }
+
+    /**
+     * @return Node trace.
+     */
+    public NodeTrace nodeTrace() {
+        return nodeTrace;
+    }
+
+    /**
+     * @param nodeTrace Node trace.
+     */
+    public void nodeTrace(NodeTrace nodeTrace) {
+        this.nodeTrace = nodeTrace;
+    }
+
+    /**
+     * @param rmtNodeId Remote node ID.
+     * @param nodeTrace Node trace to collect.
+     */
+    public void collectNodeTrace(UUID rmtNodeId, NodeTrace nodeTrace) {
+        if (this.nodeTrace != null && nodeTrace != null)
+            this.nodeTrace.addRemoteTrace(rmtNodeId, nodeTrace);
     }
 
     /**

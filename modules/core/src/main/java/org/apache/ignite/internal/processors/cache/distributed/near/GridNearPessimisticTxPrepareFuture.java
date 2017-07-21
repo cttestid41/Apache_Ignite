@@ -37,6 +37,7 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartit
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxMapping;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
@@ -96,6 +97,8 @@ public class GridNearPessimisticTxPrepareFuture extends GridNearTxPrepareFutureA
     @Override public void onResult(UUID nodeId, GridNearTxPrepareResponse res) {
         if (!isDone()) {
             assert res.clientRemapVersion() == null : res;
+
+            tx.collectNodeTrace(nodeId, res.nodeTrace());
 
             MiniFuture f = miniFuture(res.miniId());
 
@@ -210,7 +213,8 @@ public class GridNearPessimisticTxPrepareFuture extends GridNearTxPrepareFutureA
             tx.subjectId(),
             tx.taskNameHash(),
             false,
-            tx.activeCachesDeploymentEnabled());
+            tx.activeCachesDeploymentEnabled(),
+            cctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null);
 
         for (IgniteTxEntry txEntry : writes) {
             if (txEntry.op() == TRANSFORM)

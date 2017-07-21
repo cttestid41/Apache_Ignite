@@ -67,6 +67,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionProxy;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionProxyImpl;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -224,7 +225,8 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             false,
             txSize,
             subjId,
-            taskNameHash);
+            taskNameHash,
+            ctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null);
 
         mappings = implicitSingle ? new IgniteTxMappingsSingleImpl() : new IgniteTxMappingsImpl();
 
@@ -3386,7 +3388,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             return new GridFinishedFuture<IgniteInternalTx>(this);
         }
 
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true, nodeTrace);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 
@@ -3443,7 +3445,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Rolling back colocated tx locally: " + this);
 
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false, nodeTrace);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 

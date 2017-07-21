@@ -26,6 +26,8 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxState;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxStateAware;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -35,7 +37,8 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 /**
  * Response to prepare request.
  */
-public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage implements IgniteTxStateAware {
+public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
+    implements IgniteTxStateAware, IgniteTraceAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -56,6 +59,9 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
 
     /** */
     protected byte flags;
+
+    /** */
+    protected NodeTrace nodeTrace;
 
     /**
      * Empty constructor (required by {@link Externalizable}).
@@ -81,11 +87,18 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
      * @param err Error.
      * @param addDepInfo Deployment info flag.
      */
-    public GridDistributedTxPrepareResponse(int part, GridCacheVersion xid, Throwable err, boolean addDepInfo) {
+    public GridDistributedTxPrepareResponse(
+        int part,
+        GridCacheVersion xid,
+        Throwable err,
+        boolean addDepInfo,
+        NodeTrace nodeTrace
+    ) {
         super(xid, 0, addDepInfo);
 
         this.part = part;
         this.err = err;
+        this.nodeTrace = nodeTrace;
     }
 
     /**
@@ -140,6 +153,19 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
     /** {@inheritDoc} */
     @Override public void txState(IgniteTxState txState) {
         this.txState = txState;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void recordTracePoint(TracePoint point) {
+        if (nodeTrace != null)
+            nodeTrace.recordTracePoint(point);
+    }
+
+    /**
+     * @return Message trace, if any.
+     */
+    public NodeTrace nodeTrace() {
+        return nodeTrace;
     }
 
     /** {@inheritDoc} */

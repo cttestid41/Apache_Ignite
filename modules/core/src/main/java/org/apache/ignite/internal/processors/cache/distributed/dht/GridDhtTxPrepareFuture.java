@@ -66,6 +66,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.dr.GridDrType;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObjectAdapter;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -856,7 +857,8 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
             prepErr,
             null,
             tx.onePhaseCommit(),
-            tx.activeCachesDeploymentEnabled());
+            tx.activeCachesDeploymentEnabled(),
+            tx.nodeTrace());
 
         if (prepErr == null) {
             if (tx.needReturnValue() || tx.nearOnOriginatingNode() || tx.hasInterceptor())
@@ -1290,7 +1292,8 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
                         tx.taskNameHash(),
                         tx.activeCachesDeploymentEnabled(),
                         tx.storeWriteThrough(),
-                        retVal);
+                        retVal,
+                        tx.nodeTrace() != null ? new NodeTrace() : null);
 
                     int idx = 0;
 
@@ -1403,7 +1406,8 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
                             tx.taskNameHash(),
                             tx.activeCachesDeploymentEnabled(),
                             tx.storeWriteThrough(),
-                            retVal);
+                            retVal,
+                            tx.nodeTrace() != null ? new NodeTrace() : null);
 
                         for (IgniteTxEntry entry : nearMapping.entries()) {
                             if (CU.writes().apply(entry)) {

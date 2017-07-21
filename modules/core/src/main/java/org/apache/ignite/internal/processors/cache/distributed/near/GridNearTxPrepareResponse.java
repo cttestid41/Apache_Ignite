@@ -35,6 +35,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -127,9 +128,10 @@ public class GridNearTxPrepareResponse extends GridDistributedTxPrepareResponse 
         Throwable err,
         AffinityTopologyVersion clientRemapVer,
         boolean onePhaseCommit,
-        boolean addDepInfo
+        boolean addDepInfo,
+        NodeTrace nodeTrace
     ) {
-        super(part, xid, err, addDepInfo);
+        super(part, xid, err, addDepInfo, nodeTrace);
 
         assert futId != null;
         assert dhtVer != null;
@@ -140,6 +142,8 @@ public class GridNearTxPrepareResponse extends GridDistributedTxPrepareResponse 
         this.writeVer = writeVer;
         this.retVal = retVal;
         this.clientRemapVer = clientRemapVer;
+
+        recordTracePoint(TracePoint.NEAR_PREPARE_RESPONSE_CREATED);
 
         if (onePhaseCommit)
             flags |= NEAR_PREPARE_ONE_PHASE_COMMIT_FLAG_MASK;

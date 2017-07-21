@@ -25,6 +25,7 @@ import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxFinishRequest;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
@@ -87,7 +88,9 @@ public class GridNearTxFinishRequest extends GridDistributedTxFinishRequest {
         int txSize,
         @Nullable UUID subjId,
         int taskNameHash,
-        boolean addDepInfo) {
+        boolean addDepInfo,
+        NodeTrace nodeTrace
+    ) {
         super(
             xidVer,
             futId,
@@ -105,11 +108,14 @@ public class GridNearTxFinishRequest extends GridDistributedTxFinishRequest {
             subjId,
             taskNameHash,
             txSize,
-            addDepInfo
+            addDepInfo,
+            nodeTrace
         );
 
         explicitLock(explicitLock);
         storeEnabled(storeEnabled);
+
+        recordTracePoint(TracePoint.NEAR_FINISH_REQUEST_CREATED);
     }
 
     /**

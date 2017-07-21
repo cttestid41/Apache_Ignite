@@ -29,6 +29,8 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxState;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxStateAware;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.plugin.extensions.communication.MessageReader;
@@ -41,7 +43,8 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.*;
 /**
  * Transaction completion message.
  */
-public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage implements IgniteTxStateAware {
+public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage
+    implements IgniteTxStateAware, IgniteTraceAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -109,6 +112,9 @@ public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage i
     @GridDirectTransient
     private IgniteTxState txState;
 
+    /** */
+    protected NodeTrace nodeTrace;
+
     /**
      * Empty constructor required by {@link Externalizable}.
      */
@@ -149,7 +155,8 @@ public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage i
         @Nullable UUID subjId,
         int taskNameHash,
         int txSize,
-        boolean addDepInfo
+        boolean addDepInfo,
+        NodeTrace nodeTrace
     ) {
         super(xidVer, 0, addDepInfo);
 
@@ -169,6 +176,7 @@ public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage i
         this.subjId = subjId;
         this.taskNameHash = taskNameHash;
         this.txSize = txSize;
+        this.nodeTrace = nodeTrace;
 
         completedVersions(committedVers, rolledbackVers);
     }
@@ -303,6 +311,19 @@ public class GridDistributedTxFinishRequest extends GridDistributedBaseMessage i
     /** {@inheritDoc} */
     @Override public void txState(IgniteTxState txState) {
         this.txState = txState;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void recordTracePoint(TracePoint point) {
+        if (nodeTrace != null)
+            nodeTrace.recordTracePoint(point);
+    }
+
+    /**
+     * @return Message trace, if any.
+     */
+    public NodeTrace nodeTrace() {
+        return nodeTrace;
     }
 
     /** {@inheritDoc} */

@@ -37,6 +37,7 @@ import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.GridLeanMap;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -141,7 +142,9 @@ public class GridDhtTxPrepareRequest extends GridDistributedTxPrepareRequest {
         int taskNameHash,
         boolean addDepInfo,
         boolean storeWriteThrough,
-        boolean retVal) {
+        boolean retVal,
+        NodeTrace nodeTrace
+    ) {
         super(tx,
             timeout,
             null,
@@ -150,7 +153,8 @@ public class GridDhtTxPrepareRequest extends GridDistributedTxPrepareRequest {
             retVal,
             last,
             onePhaseCommit,
-            addDepInfo);
+            addDepInfo,
+            nodeTrace);
 
         assert futId != null;
         assert miniId != 0;
@@ -169,6 +173,10 @@ public class GridDhtTxPrepareRequest extends GridDistributedTxPrepareRequest {
         invalidateNearEntries = new BitSet(dhtWrites == null ? 0 : dhtWrites.size());
 
         nearNodeId = tx.nearNodeId();
+
+        this.nodeTrace = nodeTrace;
+
+        recordTracePoint(TracePoint.DHT_PREPARE_REQUEST_CREATED);
     }
 
     /**

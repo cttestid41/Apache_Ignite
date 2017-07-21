@@ -70,6 +70,7 @@ import org.apache.ignite.internal.processors.service.GridServiceProcessor;
 import org.apache.ignite.internal.processors.session.GridTaskSessionProcessor;
 import org.apache.ignite.internal.processors.task.GridTaskProcessor;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutProcessor;
+import org.apache.ignite.internal.processors.trace.TraceProcessor;
 import org.apache.ignite.internal.suggestions.GridPerformanceSuggestions;
 import org.apache.ignite.internal.util.IgniteExceptionRegistry;
 import org.apache.ignite.internal.util.StripedExecutor;
@@ -346,6 +347,11 @@ public class StandaloneGridKernalContext implements GridKernalContext {
 
     /** {@inheritDoc} */
     @Override public DataStructuresProcessor dataStructures() {
+        return null;
+    }
+
+    /** {@inheritDoc} */
+    @Override public TraceProcessor trace() {
         return null;
     }
 

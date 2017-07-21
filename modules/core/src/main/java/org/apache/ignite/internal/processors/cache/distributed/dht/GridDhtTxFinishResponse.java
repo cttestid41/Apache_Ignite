@@ -26,6 +26,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheReturn;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxFinishResponse;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteUuid;
@@ -68,12 +69,20 @@ public class GridDhtTxFinishResponse extends GridDistributedTxFinishResponse {
      * @param futId Future ID.
      * @param miniId Mini future ID.
      */
-    public GridDhtTxFinishResponse(int part, GridCacheVersion xid, IgniteUuid futId, int miniId) {
-        super(part, xid, futId);
+    public GridDhtTxFinishResponse(
+        int part,
+        GridCacheVersion xid,
+        IgniteUuid futId,
+        int miniId,
+        NodeTrace nodeTrace
+    ) {
+        super(part, xid, futId, nodeTrace);
 
         assert miniId != 0;
 
         this.miniId = miniId;
+
+        recordTracePoint(TracePoint.DHT_FINISH_RESPONSE_CREATED);
     }
 
     /**

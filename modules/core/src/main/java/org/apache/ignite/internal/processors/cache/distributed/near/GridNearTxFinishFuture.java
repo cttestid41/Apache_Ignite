@@ -45,6 +45,7 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxFini
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
@@ -107,7 +108,11 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
      * @param tx Transaction.
      * @param commit Commit flag.
      */
-    public GridNearTxFinishFuture(GridCacheSharedContext<K, V> cctx, GridNearTxLocal tx, boolean commit) {
+    public GridNearTxFinishFuture(
+        GridCacheSharedContext<K, V> cctx,
+        GridNearTxLocal tx,
+        boolean commit
+    ) {
         super(F.<IgniteInternalTx>identityReducer(tx));
 
         this.cctx = cctx;
@@ -208,6 +213,8 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
                     }
                 }
             }
+
+            tx.collectNodeTrace(nodeId, res.nodeTrace());
 
             if (finishFut != null)
                 finishFut.onNearFinishResponse(res);
@@ -463,13 +470,12 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
                 ClusterNode backup = cctx.discovery().node(backupId);
 
                 // Nothing to do if backup has left the grid.
-                if (backup == null) {
-                    // No-op.
+                if (backup != null) {
+                    if (backup.isLocal())
+                        cctx.tm().removeTxReturn(tx.xidVersion());
+                    else
+                        cctx.tm().sendDeferredAckResponse(backupId, tx.xidVersion());
                 }
-                else if (backup.isLocal())
-                    cctx.tm().removeTxReturn(tx.xidVersion());
-                else
-                    cctx.tm().sendDeferredAckResponse(backupId, tx.xidVersion());
             }
         }
     }
@@ -713,7 +719,8 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
             tx.size(),
             tx.subjectId(),
             tx.taskNameHash(),
-            tx.activeCachesDeploymentEnabled()
+            tx.activeCachesDeploymentEnabled(),
+            cctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null
         );
 
         // If this is the primary node for the keys.
@@ -847,7 +854,8 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
             0,
             tx.activeCachesDeploymentEnabled(),
             !waitRemoteTxs && (tx.needReturnValue() && tx.implicit()),
-            waitRemoteTxs);
+            waitRemoteTxs,
+            cctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null);
 
         finishReq.checkCommitted(true);
 
@@ -857,7 +865,7 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
     /**
      *
      */
-    private abstract class MinFuture extends GridFutureAdapter<IgniteInternalTx> {
+    private abstract static class MinFuture extends GridFutureAdapter<IgniteInternalTx> {
         /** */
         private final int futId;
 
@@ -916,7 +924,7 @@ public final class GridNearTxFinishFuture<K, V> extends GridCacheCompoundIdentit
         }
 
         /** {@inheritDoc} */
-        boolean onNodeLeft(UUID nodeId, boolean discoThread) {
+        @Override boolean onNodeLeft(UUID nodeId, boolean discoThread) {
             if (nodeId.equals(m.primary().id())) {
                 if (msgLog.isDebugEnabled()) {
                     msgLog.debug("Near finish fut, mini future node left [txId=" + tx.nearXidVersion() +

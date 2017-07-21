@@ -27,6 +27,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxPrepareRequest;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -116,7 +117,8 @@ public class GridNearTxPrepareRequest extends GridDistributedTxPrepareRequest {
         @Nullable UUID subjId,
         int taskNameHash,
         boolean firstClientReq,
-        boolean addDepInfo
+        boolean addDepInfo,
+        NodeTrace nodeTrace
     ) {
         super(tx,
             timeout,
@@ -126,7 +128,8 @@ public class GridNearTxPrepareRequest extends GridDistributedTxPrepareRequest {
             retVal,
             last,
             onePhaseCommit,
-            addDepInfo);
+            addDepInfo,
+            nodeTrace);
 
         assert futId != null;
         assert !firstClientReq || tx.optimistic() : tx;
@@ -135,6 +138,8 @@ public class GridNearTxPrepareRequest extends GridDistributedTxPrepareRequest {
         this.topVer = topVer;
         this.subjId = subjId;
         this.taskNameHash = taskNameHash;
+
+        recordTracePoint(TracePoint.NEAR_PREPARE_REQUEST_CREATED);
 
         setFlag(near, NEAR_FLAG_MASK);
         setFlag(implicitSingle, IMPLICIT_SINGLE_FLAG_MASK);

@@ -34,6 +34,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -111,14 +112,18 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
         IgniteUuid futId,
         int miniId,
         Throwable err,
-        boolean addDepInfo) {
-        super(part, xid, err, addDepInfo);
+        boolean addDepInfo,
+        NodeTrace nodeTrace
+    ) {
+        super(part, xid, err, addDepInfo, nodeTrace);
 
         assert futId != null;
         assert miniId != 0;
 
         this.futId = futId;
         this.miniId = miniId;
+
+        recordTracePoint(TracePoint.DHT_PREPARE_RESPONSE_CREATED);
     }
 
     /**
@@ -160,7 +165,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
      * @param invalidPartsByCacheId Map from cache ID to an array of invalid partitions.
      */
     public void invalidPartitionsByCacheId(Map<Integer, Set<Integer>> invalidPartsByCacheId) {
-        this.invalidParts = CU.convertInvalidPartitions(invalidPartsByCacheId);
+        invalidParts = CU.convertInvalidPartitions(invalidPartsByCacheId);
     }
 
     /**

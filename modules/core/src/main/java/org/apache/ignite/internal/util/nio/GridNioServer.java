@@ -55,6 +55,7 @@ import org.apache.ignite.configuration.ConnectorConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.nio.ssl.GridNioSslFilter;
@@ -1523,6 +1524,9 @@ public class GridNioServer<T> {
 
             if (req != null) {
                 msg = (Message)req.message();
+
+                if (msg instanceof IgniteTraceAware)
+                    ((IgniteTraceAware)msg).recordTracePoint(IgniteTraceAware.TracePoint.MSG_NIO_SEND);
 
                 assert msg != null : req;
 

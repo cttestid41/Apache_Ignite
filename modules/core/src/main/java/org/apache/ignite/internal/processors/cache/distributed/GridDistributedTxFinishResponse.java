@@ -23,6 +23,8 @@ import org.apache.ignite.internal.managers.communication.GridIoMessageFactory;
 import org.apache.ignite.internal.processors.cache.GridCacheMessage;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.lang.IgniteUuid;
@@ -32,7 +34,7 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 /**
  * Transaction finish response.
  */
-public class GridDistributedTxFinishResponse extends GridCacheMessage {
+public class GridDistributedTxFinishResponse extends GridCacheMessage implements IgniteTraceAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -49,6 +51,9 @@ public class GridDistributedTxFinishResponse extends GridCacheMessage {
     /** */
     private int part;
 
+    /** */
+    protected NodeTrace nodeTrace;
+
     /**
      * Empty constructor required by {@link GridIoMessageFactory}.
      */
@@ -61,7 +66,7 @@ public class GridDistributedTxFinishResponse extends GridCacheMessage {
      * @param txId Transaction id.
      * @param futId Future ID.
      */
-    public GridDistributedTxFinishResponse(int part, GridCacheVersion txId, IgniteUuid futId) {
+    public GridDistributedTxFinishResponse(int part, GridCacheVersion txId, IgniteUuid futId, NodeTrace nodeTrace) {
         assert txId != null;
         assert futId != null;
 
@@ -78,6 +83,19 @@ public class GridDistributedTxFinishResponse extends GridCacheMessage {
     /** {@inheritDoc} */
     @Override public boolean cacheGroupMessage() {
         return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override public void recordTracePoint(TracePoint point) {
+        if (nodeTrace != null)
+            nodeTrace.recordTracePoint(point);
+    }
+
+    /**
+     * @return Message trace, if any.
+     */
+    public NodeTrace nodeTrace() {
+        return nodeTrace;
     }
 
     /** {@inheritDoc} */

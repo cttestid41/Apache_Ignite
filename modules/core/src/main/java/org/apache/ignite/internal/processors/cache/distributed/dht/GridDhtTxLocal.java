@@ -39,6 +39,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -155,7 +156,8 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
             onePhaseCommit,
             txSize,
             subjId,
-            taskNameHash);
+            taskNameHash,
+            null);
 
         assert nearNodeId != null;
         assert nearFutId != null;
@@ -329,7 +331,8 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
         long msgId,
         int nearMiniId,
         Map<UUID, Collection<UUID>> txNodes,
-        boolean last
+        boolean last,
+        NodeTrace nodeTrace
     ) {
         // In optimistic mode prepare still can be called explicitly from salvageTx.
         GridDhtTxPrepareFuture fut = prepFut;
@@ -366,6 +369,8 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
             // Prepare was called explicitly.
             return chainOnePhasePrepare(fut);
         }
+
+        this.nodeTrace = nodeTrace;
 
         if (state() != PREPARING) {
             if (!state(PREPARING)) {
@@ -478,7 +483,7 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
         if (log.isDebugEnabled())
             log.debug("Committing dht local tx: " + this);
 
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true, nodeTrace);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 
@@ -528,7 +533,7 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
      * @return Rollback future.
      */
     public IgniteInternalFuture<IgniteInternalTx> rollbackDhtLocalAsync() {
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false, nodeTrace);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 
@@ -583,7 +588,8 @@ public class GridDhtTxLocal extends GridDhtTxLocalAdapter implements GridCacheMa
                 threadId,
                 nearFinFutId,
                 nearFinMiniId,
-                err);
+                err,
+                nodeTrace);
 
             try {
                 cctx.io().send(nearNodeId, res, ioPolicy());

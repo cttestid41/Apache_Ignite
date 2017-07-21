@@ -24,6 +24,7 @@ import org.apache.ignite.internal.GridDirectTransient;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxFinishResponse;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteUuid;
@@ -71,15 +72,18 @@ public class GridNearTxFinishResponse extends GridDistributedTxFinishResponse {
         long nearThreadId,
         IgniteUuid futId,
         int miniId,
-        @Nullable Throwable err)
-    {
-        super(part, xid, futId);
+        @Nullable Throwable err,
+        NodeTrace nodeTrace
+    ) {
+        super(part, xid, futId, nodeTrace);
 
         assert miniId != 0;
 
         this.nearThreadId = nearThreadId;
         this.miniId = miniId;
         this.err = err;
+
+        recordTracePoint(TracePoint.NEAR_FINISH_RESPONSE_CREATED);
     }
 
     /** {@inheritDoc} */
