@@ -33,6 +33,9 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
  */
 public class EventsTrace implements Message, IgniteTraceAware {
     /** */
+    private static final long serialVersionUID = 0L;
+
+    /** */
     private byte[] traceIds;
 
     /** */
