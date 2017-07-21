@@ -17,21 +17,32 @@
 
 package org.apache.ignite.internal.processors.cache.distributed;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.cache.CacheAtomicityMode;
+import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteKernal;
+import org.apache.ignite.internal.IgniteNodeAttributes;
+import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.PA;
+import org.apache.ignite.lang.IgniteBiPredicate;
+import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
@@ -52,11 +63,17 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /** */
     private ThreadLocal<Boolean> client = new ThreadLocal<>();
 
+    /** */
+    private boolean testSpi;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
 
         ((TcpDiscoverySpi)cfg.getDiscoverySpi()).setIpFinder(ipFinder);
+
+        if (testSpi)
+            cfg.setCommunicationSpi(new TestRecordingCommunicationSpi());
 
         Boolean clientMode = client.get();
 
@@ -118,11 +135,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             }
         }, 1, "start-srv");
 
-        GridTestUtils.waitForCondition(new PA() {
-            @Override public boolean apply() {
-                return srv0.context().cache().context().exchange().lastTopologyFuture().topologyVersion().topologyVersion() == 2L;
-            }
-        }, 5000);
+        waitForExchangeStart(srv0, 2);
 
         IgniteInternalFuture<?> fut2 = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
             @Override public Void call() throws Exception {
@@ -227,6 +240,180 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     /**
+     * @throws Exception If failed.
+     */
+    public void testNoMergeJoinExchangeCoordinatorChange1() throws Exception {
+        mergeJoinExchangeCoordinatorChange(4, CoordinatorChangeMode.NEW_CRD_RCDV);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    private void mergeJoinExchangeCoordinatorChange(int srvs, CoordinatorChangeMode mode) throws Exception {
+        log.info("mergeJoinExchangeCoordinatorChange [nodes=" + srvs + ", mode=" + mode + ']');
+
+        testSpi = true;
+
+        final int nodes = srvs;
+
+        startGrids(nodes);
+
+        CountDownLatch latch = blockExchangeFinish(srvs, mode);
+
+        IgniteInternalFuture fut = GridTestUtils.runAsync(new Callable() {
+            @Override public Object call() throws Exception {
+                startGrid(nodes);
+
+                return null;
+            }
+        });
+
+        waitForExchangeStart(ignite(0), nodes + 1);
+
+        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+            fail("Failed to wait for expected messages.");
+
+        stopGrid(0);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    private CountDownLatch blockExchangeFinish(int srvs, CoordinatorChangeMode mode) throws Exception {
+        Ignite crd = ignite(0);
+
+        long topVer = srvs + 1;
+
+        switch (mode) {
+            case NON_RCVD: {
+                blockExchangeFinish(crd, topVer);
+
+                break;
+            }
+
+            case NEW_CRD_RCDV: {
+                List<Integer> finishNodes = F.asList(1);
+
+                return blockExchangeFinish(crd, topVer, blockNodes(srvs, finishNodes), finishNodes);
+            }
+
+            case NON_CRD_RCVD: {
+                assert srvs > 2 : srvs;
+
+                List<Integer> finishNodes = F.asList(2);
+
+                return blockExchangeFinish(crd, topVer, blockNodes(srvs, finishNodes), finishNodes);
+            }
+
+            default:
+                fail();
+        }
+
+        return null;
+    }
+
+    /**
+     * @param srvs
+     * @param waitNodes
+     * @return
+     */
+    private List<Integer> blockNodes(int srvs, List<Integer> waitNodes) {
+        List<Integer> block = new ArrayList<>();
+
+        for (int i = 0; i < srvs + 1; i++) {
+            if (!waitNodes.contains(i))
+                block.add(i);
+        }
+
+        return block;
+    }
+
+    /**
+     *
+     */
+    enum CoordinatorChangeMode {
+        /** */
+        NON_RCVD,
+
+        /** */
+        NEW_CRD_RCDV,
+
+        /** */
+        NON_CRD_RCVD
+    }
+
+    /**
+     * @param crd Exchange coordinator.
+     * @param topVer Exchange topology version.
+     */
+    private void blockExchangeFinish(Ignite crd, long topVer) {
+        final AffinityTopologyVersion topVer0 = new AffinityTopologyVersion(topVer);
+
+        TestRecordingCommunicationSpi.spi(crd).blockMessages(new IgniteBiPredicate<ClusterNode, Message>() {
+            @Override public boolean apply(ClusterNode node, Message msg) {
+                if (msg instanceof GridDhtPartitionsFullMessage) {
+                    GridDhtPartitionsFullMessage msg0 = (GridDhtPartitionsFullMessage)msg;
+
+                    return msg0.exchangeId() != null && msg0.exchangeId().topologyVersion().equals(topVer0);
+                }
+
+                return false;
+            }
+        });
+    }
+
+    /**
+     * @param crd Exchange coordinator.
+     * @param topVer Exchange topology version.
+     */
+    private CountDownLatch blockExchangeFinish(Ignite crd,
+        long topVer,
+        final List<Integer> blockNodes,
+        final List<Integer> waitMsgNodes)
+    {
+        log.info("blockExchangeFinish [crd=" + crd.cluster().localNode().id() +
+            ", block=" + blockNodes +
+            ", wait=" + waitMsgNodes + ']');
+
+        final AffinityTopologyVersion topVer0 = new AffinityTopologyVersion(topVer);
+
+        final CountDownLatch latch = new CountDownLatch(waitMsgNodes.size());
+
+        TestRecordingCommunicationSpi.spi(crd).blockMessages(new IgniteBiPredicate<ClusterNode, Message>() {
+            @Override public boolean apply(ClusterNode node, Message msg) {
+                if (msg instanceof GridDhtPartitionsFullMessage) {
+                    GridDhtPartitionsFullMessage msg0 = (GridDhtPartitionsFullMessage)msg;
+
+                    if (msg0.exchangeId() == null || !msg0.exchangeId().topologyVersion().equals(topVer0))
+                        return false;
+
+                    String name = node.attribute(IgniteNodeAttributes.ATTR_IGNITE_INSTANCE_NAME);
+
+                    assert name != null : node;
+
+                    for (Integer idx : blockNodes) {
+                        if (name.equals(getTestIgniteInstanceName(idx)))
+                            return true;
+                    }
+
+                    for (Integer idx : waitMsgNodes) {
+                        if (name.equals(getTestIgniteInstanceName(idx))) {
+                            log.info("Coordinators sends awaited message [node=" + node.id() + ']');
+
+                            latch.countDown();
+                        }
+                    }
+                }
+
+                return false;
+            }
+        });
+
+        return latch;
+    }
+
+    /**
      * @param node Node.
      * @param topVer Ready exchange version to wait for before trying to merge exchanges.
      */
@@ -275,5 +462,22 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                 }
             }
         }
+    }
+
+    /**
+     * @param node Node.
+     * @param topVer Exchange version.
+     * @throws Exception If failed.
+     */
+    private void waitForExchangeStart(final Ignite node, final long topVer) throws Exception {
+        final GridCachePartitionExchangeManager exch = ((IgniteKernal)node).context().cache().context().exchange();
+
+        boolean wait = GridTestUtils.waitForCondition(new PA() {
+            @Override public boolean apply() {
+                return exch.lastTopologyFuture().topologyVersion().topologyVersion() >= topVer;
+            }
+        }, 5000);
+
+        assertTrue(wait);
     }
 }

@@ -472,8 +472,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         exchCtx = new ExchangeContext(this);
 
         try {
-            discoCache.updateAlives(cctx.discovery());
-
             AffinityTopologyVersion topVer = topologyVersion();
 
             srvNodes = new ArrayList<>(discoCache.serverNodes());
@@ -486,8 +484,16 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             assert state == null : state;
 
-            if (crdNode)
+            if (crdNode) {
+                if (!remaining.isEmpty()) {
+                    IgniteInternalFuture<?>  fut = cctx.affinity().initCoordinatorCaches(this, false);
+
+                    if (fut != null)
+                        fut.get();
+                }
+
                 state = ExchangeLocalState.CRD;
+            }
             else
                 state = cctx.kernalContext().clientNode() ? ExchangeLocalState.CLIENT : ExchangeLocalState.SRV;
 
@@ -1738,6 +1744,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             switch (state) {
                 case DONE: {
+                    log.info("Received single message, already done [ver=" + initialVersion() +
+                        ", node=" + nodeId + ']');
+
                     assert finishState != null;
 
                     finishState0 = finishState;
@@ -1757,6 +1766,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             changeGlobalStateExceptions.put(nodeId, msg.getError());
 
                         allReceived = remaining.isEmpty();
+
+                        log.info("Coordinator received single message [ver=" + initialVersion() +
+                            ", node=" + nodeId +
+                            ", allReceived=" + allReceived + ']');
                     }
 
                     break;
@@ -1764,6 +1777,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 case SRV:
                 case BECOME_CRD: {
+                    log.info("Non-coordinator received single message [ver=" + initialVersion() +
+                        ", node=" + nodeId + ", state=" + state + ']');
+
                     singleMsgs.put(nodeId, msg);
 
                     break;
@@ -2040,7 +2056,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             assert partHistSuppliers.isEmpty() : partHistSuppliers;
 
-            if (!crd.equals(discoCache.serverNodes().get(0))) {
+            if (!crd.equals(discoCache.serverNodes().get(0)) && !exchCtx.mergeExchanges()) {
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                     if (!grp.isLocal())
                         grp.topology().beforeExchange(this, !centralizedAff);
@@ -2048,6 +2064,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             }
 
             if (exchCtx.mergeExchanges()) {
+                log.info("Coordinator received all messages, try merge [ver=" + initialVersion() + ']');
+
                 boolean finish = cctx.exchange().mergeExchangesOnCoordinator(this);
 
                 if (!finish)
@@ -2461,9 +2479,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     case SRV:
                     case CLIENT: {
                         if (!crd.equals(node)) {
-                            if (log.isDebugEnabled())
-                                log.debug("Received full partition map from unexpected node [oldest=" + crd.id() +
-                                    ", nodeId=" + node.id() + ']');
+                            log.info("Received full message from non-coordinator [node=" + node.id() +
+                                    ", nodeOrder=" + node.order() +
+                                    ", crd=" + crd.id() +
+                                    ", crdOrder=" + crd.order() + ']');
 
                             if (node.order() > crd.order())
                                 fullMsgs.put(node, msg);
@@ -2471,6 +2490,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             return;
                         }
                         else {
+                            log.info("Received full message, will finish exchange [node=" + node.id() +
+                                ", resVer=" + msg.resultTopologyVersion() + ']');
+
                             finishState = new FinishState(crd.id(),
                                 msg.resultTopologyVersion() != null ? msg.resultTopologyVersion() : initialVersion(),
                                 msg);
@@ -2723,6 +2745,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             }
 
                             switch (state) {
+                                case DONE:
+                                    return;
+
                                 case CRD:
                                     allReceived = rmvd && (remaining.isEmpty() && F.isEmpty(mergedJoinExchMsgs));
 
@@ -2768,6 +2793,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                 changeGlobalStateExceptions.put(crd0.id(), changeGlobalStateE);
 
                             if (crdChanged) {
+                                log.info("Coordinator failed, node is new coordinator [ver=" + initialVersion() +
+                                    ", prev=" + node.id() + ']');
+
                                 boolean newAff = localJoinExchange();
 
                                 IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(
@@ -2794,11 +2822,23 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         }
                         else {
                             if (crdChanged) {
-                                for (Map.Entry<ClusterNode, GridDhtPartitionsFullMessage> m : fullMsgs.entrySet())
-                                    processFullMessage(m.getKey(), m.getValue());
+                                for (Map.Entry<ClusterNode, GridDhtPartitionsFullMessage> m : fullMsgs.entrySet()) {
+                                    log.info("Coordinator changed, process pending full message [" +
+                                        "ver=" + initialVersion() +
+                                        ", crd=" + node.id() +
+                                        ", pendingMsgNode=" + m.getKey() + ']');
 
-                                if (!isDone())
+                                    processFullMessage(m.getKey(), m.getValue());
+                                }
+
+                                if (!isDone()) {
+                                    log.info("Coordinator changed, send partitions to new coordinator [" +
+                                        "ver=" + initialVersion() +
+                                        ", crd=" + node.id() +
+                                        ", newCrd=" + crd0.id() + ']');
+
                                     sendPartitions(crd0);
+                                }
                             }
                         }
                     }
@@ -2830,6 +2870,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             state = ExchangeLocalState.CRD;
 
+            assert mergedJoinExchMsgs == null;
+
+            log.info("New coordinator initialization finished [ver=" + initialVersion() +
+                ", remaining=" + remaining + ']');
+
             if (!remaining.isEmpty())
                 remaining0 = new HashSet<>(remaining);
         }
@@ -2840,8 +2885,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             for (UUID nodeId : remaining0) {
                 try {
-                    if (!singleMsgs.containsKey(nodeId))
+                    if (!singleMsgs.containsKey(nodeId)) {
+                        log.info("New coordinator sends request [ver=" + initialVersion() +
+                            ", node=" + nodeId + ']');
+
                         cctx.io().send(nodeId, req, SYSTEM_POOL);
+                    }
                 }
                 catch (ClusterTopologyCheckedException ignored) {
                     if (log.isDebugEnabled())
@@ -2853,8 +2902,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> m : singleMsgs.entrySet())
+            for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> m : singleMsgs.entrySet()) {
+                log.info("New coordinator process pending message [ver=" + initialVersion() +
+                        ", node=" + m.getKey() + ']');
+
                 processSingleMessage(m.getKey(), m.getValue());
+            }
         }
         else {
             awaitSingleMapUpdates();
