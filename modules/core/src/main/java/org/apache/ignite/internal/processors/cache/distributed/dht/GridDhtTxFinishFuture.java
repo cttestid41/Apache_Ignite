@@ -37,7 +37,7 @@ import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
@@ -97,9 +97,6 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
     /** Near mappings. */
     private Map<UUID, GridDistributedTxMapping> nearMap;
 
-    /** */
-    private NodeTrace nodeTrace;
-
     /**
      * @param cctx Context.
      * @param tx Transaction.
@@ -108,8 +105,7 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
     public GridDhtTxFinishFuture(
         GridCacheSharedContext<K, V> cctx,
         GridDhtTxLocalAdapter tx,
-        boolean commit,
-        NodeTrace nodeTrace
+        boolean commit
     ) {
         super(F.<IgniteInternalTx>identityReducer(tx));
 
@@ -126,8 +122,6 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
             msgLog = cctx.txFinishMessageLogger();
             log = U.logger(cctx.kernalContext(), logRef, GridDhtTxFinishFuture.class);
         }
-
-        this.nodeTrace = nodeTrace;
     }
 
     /**
@@ -360,7 +354,7 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                 tx.activeCachesDeploymentEnabled(),
                 false,
                 false,
-                nodeTrace != null ? new NodeTrace() : null);
+                tx.nodeTrace() != null ? new EventsTrace() : null);
 
             try {
                 cctx.io().send(n, req, tx.ioPolicy());
@@ -464,7 +458,7 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                 updCntrs,
                 false,
                 false,
-                nodeTrace != null ? new NodeTrace() : null);
+                tx.nodeTrace() != null ? new EventsTrace() : null);
 
             req.writeVersion(tx.writeVersion() != null ? tx.writeVersion() : tx.xidVersion());
 
@@ -534,7 +528,7 @@ public final class GridDhtTxFinishFuture<K, V> extends GridCacheCompoundIdentity
                     tx.activeCachesDeploymentEnabled(),
                     false,
                     false,
-                    nodeTrace != null ? new NodeTrace() : null);
+                    tx.nodeTrace() != null ? new EventsTrace() : null);
 
                 req.writeVersion(tx.writeVersion());
 

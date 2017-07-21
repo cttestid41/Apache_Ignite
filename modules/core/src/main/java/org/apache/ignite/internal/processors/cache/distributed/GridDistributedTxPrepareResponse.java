@@ -26,8 +26,8 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxState;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxStateAware;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -61,7 +61,7 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
     protected byte flags;
 
     /** */
-    protected NodeTrace nodeTrace;
+    protected EventsTrace eventsTrace;
 
     /**
      * Empty constructor (required by {@link Externalizable}).
@@ -75,10 +75,16 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
      * @param xid Lock or transaction ID.
      * @param addDepInfo Deployment info flag.
      */
-    public GridDistributedTxPrepareResponse(int part, GridCacheVersion xid, boolean addDepInfo) {
+    public GridDistributedTxPrepareResponse(
+        int part,
+        GridCacheVersion xid,
+        boolean addDepInfo,
+        EventsTrace eventsTrace
+    ) {
         super(xid, 0, addDepInfo);
 
         this.part = part;
+        this.eventsTrace = eventsTrace;
     }
 
     /**
@@ -92,13 +98,13 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
         GridCacheVersion xid,
         Throwable err,
         boolean addDepInfo,
-        NodeTrace nodeTrace
+        EventsTrace eventsTrace
     ) {
         super(xid, 0, addDepInfo);
 
         this.part = part;
         this.err = err;
-        this.nodeTrace = nodeTrace;
+        this.eventsTrace = eventsTrace;
     }
 
     /**
@@ -157,15 +163,15 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
 
     /** {@inheritDoc} */
     @Override public void recordTracePoint(TracePoint point) {
-        if (nodeTrace != null)
-            nodeTrace.recordTracePoint(point);
+        if (eventsTrace != null)
+            eventsTrace.recordTracePoint(point);
     }
 
     /**
      * @return Message trace, if any.
      */
-    public NodeTrace nodeTrace() {
-        return nodeTrace;
+    public EventsTrace nodeTrace() {
+        return eventsTrace;
     }
 
     /** {@inheritDoc} */
@@ -217,6 +223,12 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
                 writer.incrementState();
 
             case 9:
+                if (!writer.writeMessage("eventsTrace", eventsTrace))
+                    return false;
+
+                writer.incrementState();
+
+            case 10:
                 if (!writer.writeInt("part", part))
                     return false;
 
@@ -255,6 +267,14 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 9:
+                eventsTrace = reader.readMessage("eventsTrace");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
+            case 10:
                 part = reader.readInt("part");
 
                 if (!reader.isLastRead())
@@ -274,7 +294,7 @@ public class GridDistributedTxPrepareResponse extends GridDistributedBaseMessage
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 10;
+        return 11;
     }
 
     /** {@inheritDoc} */

@@ -19,14 +19,16 @@ package org.apache.ignite.internal.processors.trace;
 
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 
-import static org.apache.ignite.transactions.TransactionConcurrency.*;
-import static org.apache.ignite.transactions.TransactionIsolation.*;
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
+import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.transactions.TransactionConcurrency.OPTIMISTIC;
+import static org.apache.ignite.transactions.TransactionConcurrency.PESSIMISTIC;
+import static org.apache.ignite.transactions.TransactionIsolation.REPEATABLE_READ;
 
 /**
  *
@@ -43,8 +45,9 @@ public class GridCacheTxTracingSelfTest extends GridCommonAbstractTest {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
 
         CacheConfiguration ccfg = new CacheConfiguration(CACHE_NAME)
-            .setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL)
-            .setBackups(1);
+            .setAtomicityMode(TRANSACTIONAL)
+            .setBackups(1)
+            .setWriteSynchronizationMode(FULL_SYNC);
 
         cfg.setCacheConfiguration(ccfg);
 
@@ -57,6 +60,8 @@ public class GridCacheTxTracingSelfTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         startGrids(GRID_CNT);
+
+        awaitPartitionMapExchange();
     }
 
     /**
@@ -67,14 +72,16 @@ public class GridCacheTxTracingSelfTest extends GridCommonAbstractTest {
 
         IgniteCache<Object, Object> cache = client.cache(DEFAULT_CACHE_NAME);
 
-        try (Transaction tx = client.transactions().txStart(PESSIMISTIC, REPEATABLE_READ)) {
-            cache.get(1);
+        for (int r = 0; r < 1000; r++) {
+            try (Transaction tx = client.transactions().txStart(OPTIMISTIC, REPEATABLE_READ)) {
+                for (int i = 0; i < 10; i++)
+                    cache.put(i, i);
 
-            cache.put(1, 1);
+                tx.commit();
 
-            tx.commit();
-
-            System.out.println("A");
+                if (r == 999)
+                    System.out.println("A");
+            }
         }
     }
 }

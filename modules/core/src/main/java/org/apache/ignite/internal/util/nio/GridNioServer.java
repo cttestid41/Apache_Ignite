@@ -1525,9 +1525,6 @@ public class GridNioServer<T> {
             if (req != null) {
                 msg = (Message)req.message();
 
-                if (msg instanceof IgniteTraceAware)
-                    ((IgniteTraceAware)msg).recordTracePoint(IgniteTraceAware.TracePoint.MSG_NIO_SEND);
-
                 assert msg != null : req;
 
                 if (writer != null)

@@ -21,7 +21,14 @@ package org.apache.ignite.internal.processors.trace;
  *
  */
 public interface IgniteTraceAware {
+    /**
+     *
+     */
     public enum TracePoint {
+        TX_CREATE,
+        TX_PREPARE,
+        TX_COMMIT,
+        TX_END,
         MSG_NIO_RECEIVE,
         MSG_NIO_SEND,
         MSG_LISTENER_INVOKE,
@@ -32,7 +39,18 @@ public interface IgniteTraceAware {
         NEAR_FINISH_REQUEST_CREATED,
         NEAR_FINISH_RESPONSE_CREATED,
         DHT_FINISH_REQUEST_CREATED,
-        DHT_FINISH_RESPONSE_CREATED,
+        DHT_FINISH_RESPONSE_CREATED;
+
+        /** */
+        private static final TracePoint[] VALS = values();
+
+        /**
+         * @param ord Ordinal.
+         * @return TracePoint enum.
+         */
+        public static TracePoint fromOrdinal(int ord) {
+            return ord < 0 || ord >= VALS.length ? null : VALS[ord];
+        }
     }
 
     /**

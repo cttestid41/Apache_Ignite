@@ -944,7 +944,8 @@ public class IgniteTxHandler {
                 req.version(),
                 req.futureId(),
                 req.miniId(),
-                req.deployInfo() != null);
+                req.deployInfo() != null,
+                req.nodeTrace());
 
             // Start near transaction first.
             nearTx = !F.isEmpty(req.nearWrites()) ? startNearRemoteTx(ctx.deploy().globalLoader(), nodeId, req) : null;

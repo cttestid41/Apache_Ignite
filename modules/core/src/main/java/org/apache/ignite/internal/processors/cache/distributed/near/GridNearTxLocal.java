@@ -67,7 +67,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionProxy;
 import org.apache.ignite.internal.processors.cache.transactions.TransactionProxyImpl;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -118,7 +118,7 @@ import static org.apache.ignite.transactions.TransactionState.UNKNOWN;
  * Replicated user transaction.
  */
 @SuppressWarnings("unchecked")
-public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoCloseable  {
+public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoCloseable {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -226,7 +226,9 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             txSize,
             subjId,
             taskNameHash,
-            ctx.kernalContext().trace().tracingEnabled() ? new NodeTrace() : null);
+            ctx.kernalContext().trace().tracingEnabled() ? new EventsTrace() : null);
+
+        recordTracePoint(TracePoint.TX_CREATE);
 
         mappings = implicitSingle ? new IgniteTxMappingsSingleImpl() : new IgniteTxMappingsImpl();
 
@@ -3097,6 +3099,8 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             if (!PREP_FUT_UPD.compareAndSet(this, null, fut))
                 return prepFut;
 
+            recordTracePoint(TracePoint.TX_PREPARE);
+
             if (timeout == -1) {
                 fut.onDone(this, timeoutException());
 
@@ -3157,6 +3161,8 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             cctx.tm().fastFinishTx(this, true);
 
             state(COMMITTED);
+
+            recordTracePoint(TracePoint.TX_END);
 
             return new GridFinishedFuture<>((IgniteInternalTx)this);
         }
@@ -3388,7 +3394,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
             return new GridFinishedFuture<IgniteInternalTx>(this);
         }
 
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true, nodeTrace);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, true);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 
@@ -3445,7 +3451,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter implements AutoClosea
         if (log.isDebugEnabled())
             log.debug("Rolling back colocated tx locally: " + this);
 
-        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false, nodeTrace);
+        final GridDhtTxFinishFuture fut = new GridDhtTxFinishFuture<>(cctx, this, false);
 
         cctx.mvcc().addFuture(fut, fut.futureId());
 

@@ -41,7 +41,8 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalAdapter;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
+import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
 import org.apache.ignite.internal.util.F0;
 import org.apache.ignite.internal.util.GridLeanMap;
 import org.apache.ignite.internal.util.GridLeanSet;
@@ -72,7 +73,7 @@ import static org.apache.ignite.transactions.TransactionState.UNKNOWN;
 /**
  * Replicated user transaction.
  */
-public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
+public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter implements IgniteTraceAware {
     /** */
     private static final long serialVersionUID = 0L;
 
@@ -98,7 +99,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     private Set<ClusterNode> lockTxNodes;
 
     /** */
-    protected NodeTrace nodeTrace;
+    protected EventsTrace eventsTrace;
 
     /**
      * Empty constructor required for {@link Externalizable}.
@@ -135,7 +136,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
         int txSize,
         @Nullable UUID subjId,
         int taskNameHash,
-        NodeTrace nodeTrace
+        EventsTrace eventsTrace
     ) {
         super(
             cctx,
@@ -161,7 +162,7 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
 
         threadId = Thread.currentThread().getId();
 
-        this.nodeTrace = nodeTrace;
+        this.eventsTrace = eventsTrace;
     }
 
     /**
@@ -244,6 +245,12 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
      * @param err Error, if any.
      */
     protected abstract void sendFinishReply(@Nullable Throwable err);
+
+    /** {@inheritDoc} */
+    @Override public void recordTracePoint(TracePoint point) {
+        if (eventsTrace != null)
+            eventsTrace.recordTracePoint(point);
+    }
 
     /** {@inheritDoc} */
     @Override public boolean needsCompletedVersions() {
@@ -841,24 +848,24 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     /**
      * @return Node trace.
      */
-    public NodeTrace nodeTrace() {
-        return nodeTrace;
+    public EventsTrace nodeTrace() {
+        return eventsTrace;
     }
 
     /**
-     * @param nodeTrace Node trace.
+     * @param eventsTrace Node trace.
      */
-    public void nodeTrace(NodeTrace nodeTrace) {
-        this.nodeTrace = nodeTrace;
+    public void nodeTrace(EventsTrace eventsTrace) {
+        this.eventsTrace = eventsTrace;
     }
 
     /**
      * @param rmtNodeId Remote node ID.
-     * @param nodeTrace Node trace to collect.
+     * @param eventsTrace Node trace to collect.
      */
-    public void collectNodeTrace(UUID rmtNodeId, NodeTrace nodeTrace) {
-        if (this.nodeTrace != null && nodeTrace != null)
-            this.nodeTrace.addRemoteTrace(rmtNodeId, nodeTrace);
+    public void collectNodeTrace(UUID rmtNodeId, EventsTrace eventsTrace) {
+        if (this.eventsTrace != null && eventsTrace != null)
+            this.eventsTrace.addRemoteTrace(rmtNodeId, eventsTrace);
     }
 
     /**

@@ -66,7 +66,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.dr.GridDrType;
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObjectAdapter;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.transactions.IgniteTxHeuristicCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -542,6 +542,8 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
         MiniFuture mini = miniFuture(res.miniId());
 
         if (mini != null) {
+            tx.collectNodeTrace(nodeId, res.nodeTrace());
+
             assert mini.node().id().equals(nodeId);
 
             mini.onResult(res);
@@ -1293,7 +1295,7 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
                         tx.activeCachesDeploymentEnabled(),
                         tx.storeWriteThrough(),
                         retVal,
-                        tx.nodeTrace() != null ? new NodeTrace() : null);
+                        tx.nodeTrace() != null ? new EventsTrace() : null);
 
                     int idx = 0;
 
@@ -1407,7 +1409,7 @@ public final class GridDhtTxPrepareFuture extends GridCacheCompoundFuture<Ignite
                             tx.activeCachesDeploymentEnabled(),
                             tx.storeWriteThrough(),
                             retVal,
-                            tx.nodeTrace() != null ? new NodeTrace() : null);
+                            tx.nodeTrace() != null ? new EventsTrace() : null);
 
                         for (IgniteTxEntry entry : nearMapping.entries()) {
                             if (CU.writes().apply(entry)) {

@@ -34,7 +34,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
@@ -88,14 +88,18 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
         GridCacheVersion xid,
         IgniteUuid futId,
         int miniId,
-        boolean addDepInfo) {
-        super(part, xid, addDepInfo);
+        boolean addDepInfo,
+        EventsTrace eventsTrace
+    ) {
+        super(part, xid, addDepInfo, eventsTrace);
 
         assert futId != null;
         assert miniId != 0;
 
         this.futId = futId;
         this.miniId = miniId;
+
+        recordTracePoint(TracePoint.DHT_PREPARE_RESPONSE_CREATED);
     }
 
     /**
@@ -113,9 +117,9 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
         int miniId,
         Throwable err,
         boolean addDepInfo,
-        NodeTrace nodeTrace
+        EventsTrace eventsTrace
     ) {
-        super(part, xid, err, addDepInfo, nodeTrace);
+        super(part, xid, err, addDepInfo, eventsTrace);
 
         assert futId != null;
         assert miniId != 0;
@@ -250,31 +254,31 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
         }
 
         switch (writer.state()) {
-            case 10:
+            case 11:
                 if (!writer.writeIgniteUuid("futId", futId))
                     return false;
 
                 writer.incrementState();
 
-            case 11:
+            case 12:
                 if (!writer.writeMap("invalidParts", invalidParts, MessageCollectionItemType.INT, MessageCollectionItemType.INT_ARR))
                     return false;
 
                 writer.incrementState();
 
-            case 12:
+            case 13:
                 if (!writer.writeInt("miniId", miniId))
                     return false;
 
                 writer.incrementState();
 
-            case 13:
+            case 14:
                 if (!writer.writeCollection("nearEvicted", nearEvicted, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
 
-            case 14:
+            case 15:
                 if (!writer.writeCollection("preloadEntries", preloadEntries, MessageCollectionItemType.MSG))
                     return false;
 
@@ -296,7 +300,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
             return false;
 
         switch (reader.state()) {
-            case 10:
+            case 11:
                 futId = reader.readIgniteUuid("futId");
 
                 if (!reader.isLastRead())
@@ -304,7 +308,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
 
                 reader.incrementState();
 
-            case 11:
+            case 12:
                 invalidParts = reader.readMap("invalidParts", MessageCollectionItemType.INT, MessageCollectionItemType.INT_ARR, false);
 
                 if (!reader.isLastRead())
@@ -312,7 +316,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
 
                 reader.incrementState();
 
-            case 12:
+            case 13:
                 miniId = reader.readInt("miniId");
 
                 if (!reader.isLastRead())
@@ -320,7 +324,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
 
                 reader.incrementState();
 
-            case 13:
+            case 14:
                 nearEvicted = reader.readCollection("nearEvicted", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
@@ -328,7 +332,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
 
                 reader.incrementState();
 
-            case 14:
+            case 15:
                 preloadEntries = reader.readCollection("preloadEntries", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
@@ -348,7 +352,7 @@ public class GridDhtTxPrepareResponse extends GridDistributedTxPrepareResponse {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 15;
+        return 16;
     }
 
     /** {@inheritDoc} */

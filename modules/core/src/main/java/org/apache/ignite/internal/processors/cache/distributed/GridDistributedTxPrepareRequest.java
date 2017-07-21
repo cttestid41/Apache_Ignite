@@ -39,7 +39,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxState;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxStateAware;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.trace.IgniteTraceAware;
-import org.apache.ignite.internal.processors.trace.NodeTrace;
+import org.apache.ignite.internal.processors.trace.EventsTrace;
 import org.apache.ignite.internal.util.UUIDCollectionMessage;
 import org.apache.ignite.internal.util.tostring.GridToStringBuilder;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -161,7 +161,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
     private byte flags;
 
     /** */
-    protected NodeTrace nodeTrace;
+    protected EventsTrace eventsTrace;
 
     /**
      * Required by {@link Externalizable}.
@@ -191,7 +191,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
         boolean last,
         boolean onePhaseCommit,
         boolean addDepInfo,
-        NodeTrace nodeTrace
+        EventsTrace eventsTrace
     ) {
         super(tx.xidVersion(), 0, addDepInfo);
 
@@ -206,7 +206,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
         this.reads = reads;
         this.writes = writes;
         this.txNodes = txNodes;
-        this.nodeTrace = nodeTrace;
+        this.eventsTrace = eventsTrace;
 
         setFlag(tx.system(), SYSTEM_TX_FLAG_MASK);
         setFlag(retVal, NEED_RETURN_VALUE_FLAG_MASK);
@@ -390,15 +390,15 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
 
     /** {@inheritDoc} */
     @Override public void recordTracePoint(TracePoint point) {
-        if (nodeTrace != null)
-            nodeTrace.recordTracePoint(point);
+        if (eventsTrace != null)
+            eventsTrace.recordTracePoint(point);
     }
 
     /**
      * @return Request trace, if any.
      */
-    public NodeTrace nodeTrace() {
-        return nodeTrace;
+    public EventsTrace nodeTrace() {
+        return eventsTrace;
     }
 
     /** {@inheritDoc}
@@ -535,48 +535,54 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 writer.incrementState();
 
             case 12:
-                if (!writer.writeByte("plc", plc))
+                if (!writer.writeMessage("eventsTrace", eventsTrace))
                     return false;
 
                 writer.incrementState();
 
             case 13:
-                if (!writer.writeCollection("reads", reads, MessageCollectionItemType.MSG))
+                if (!writer.writeByte("plc", plc))
                     return false;
 
                 writer.incrementState();
 
             case 14:
-                if (!writer.writeLong("threadId", threadId))
+                if (!writer.writeCollection("reads", reads, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
 
             case 15:
-                if (!writer.writeLong("timeout", timeout))
+                if (!writer.writeLong("threadId", threadId))
                     return false;
 
                 writer.incrementState();
 
             case 16:
-                if (!writer.writeMap("txNodesMsg", txNodesMsg, MessageCollectionItemType.UUID, MessageCollectionItemType.MSG))
+                if (!writer.writeLong("timeout", timeout))
                     return false;
 
                 writer.incrementState();
 
             case 17:
-                if (!writer.writeInt("txSize", txSize))
+                if (!writer.writeMap("txNodesMsg", txNodesMsg, MessageCollectionItemType.UUID, MessageCollectionItemType.MSG))
                     return false;
 
                 writer.incrementState();
 
             case 18:
-                if (!writer.writeMessage("writeVer", writeVer))
+                if (!writer.writeInt("txSize", txSize))
                     return false;
 
                 writer.incrementState();
 
             case 19:
+                if (!writer.writeMessage("writeVer", writeVer))
+                    return false;
+
+                writer.incrementState();
+
+            case 20:
                 if (!writer.writeCollection("writes", writes, MessageCollectionItemType.MSG))
                     return false;
 
@@ -647,7 +653,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 12:
-                plc = reader.readByte("plc");
+                eventsTrace = reader.readMessage("eventsTrace");
 
                 if (!reader.isLastRead())
                     return false;
@@ -655,7 +661,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 13:
-                reads = reader.readCollection("reads", MessageCollectionItemType.MSG);
+                plc = reader.readByte("plc");
 
                 if (!reader.isLastRead())
                     return false;
@@ -663,7 +669,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 14:
-                threadId = reader.readLong("threadId");
+                reads = reader.readCollection("reads", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
                     return false;
@@ -671,7 +677,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 15:
-                timeout = reader.readLong("timeout");
+                threadId = reader.readLong("threadId");
 
                 if (!reader.isLastRead())
                     return false;
@@ -679,7 +685,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 16:
-                txNodesMsg = reader.readMap("txNodesMsg", MessageCollectionItemType.UUID, MessageCollectionItemType.MSG, false);
+                timeout = reader.readLong("timeout");
 
                 if (!reader.isLastRead())
                     return false;
@@ -687,7 +693,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 17:
-                txSize = reader.readInt("txSize");
+                txNodesMsg = reader.readMap("txNodesMsg", MessageCollectionItemType.UUID, MessageCollectionItemType.MSG, false);
 
                 if (!reader.isLastRead())
                     return false;
@@ -695,7 +701,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 18:
-                writeVer = reader.readMessage("writeVer");
+                txSize = reader.readInt("txSize");
 
                 if (!reader.isLastRead())
                     return false;
@@ -703,6 +709,14 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
                 reader.incrementState();
 
             case 19:
+                writeVer = reader.readMessage("writeVer");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
+            case 20:
                 writes = reader.readCollection("writes", MessageCollectionItemType.MSG);
 
                 if (!reader.isLastRead())
@@ -722,7 +736,7 @@ public class GridDistributedTxPrepareRequest extends GridDistributedBaseMessage
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 20;
+        return 21;
     }
 
     /** {@inheritDoc} */
