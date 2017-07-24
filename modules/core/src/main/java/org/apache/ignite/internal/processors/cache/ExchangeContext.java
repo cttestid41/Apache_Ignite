@@ -19,11 +19,13 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
+import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.exchangeProtocolVersion;
 
 /**
  *
@@ -45,7 +47,7 @@ public class ExchangeContext {
      * @param fut Exchange future.
      */
     public ExchangeContext(GridDhtPartitionsExchangeFuture fut) {
-        int protocolVer = GridCachePartitionExchangeManager.exchangeProtocolVersion(
+        int protocolVer = exchangeProtocolVersion(
             fut.discoCache().minimumNodeVersion());
 
         fetchAffOnJoin = protocolVer == 1;
@@ -53,6 +55,10 @@ public class ExchangeContext {
         merge = protocolVer > 1 && fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
 
         evts = new ExchangeDiscoveryEvents(fut);
+    }
+
+    boolean supportsMergeExchanges(ClusterNode node) {
+        return exchangeProtocolVersion(node.version()) > 1;
     }
 
     /**

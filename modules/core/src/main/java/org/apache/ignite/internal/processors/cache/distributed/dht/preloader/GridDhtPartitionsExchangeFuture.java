@@ -2181,14 +2181,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                     grp.topology().beforeExchange(this, true);
                 }
-            }
 
-            synchronized (this) {
-                if (mergedJoinExchMsgs != null) {
-                    for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : mergedJoinExchMsgs.entrySet()) {
-                        msgs.put(e.getKey(), e.getValue());
+                synchronized (this) {
+                    if (mergedJoinExchMsgs != null) {
+                        for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : mergedJoinExchMsgs.entrySet()) {
+                            msgs.put(e.getKey(), e.getValue());
 
-                        updatePartitionSingleMap(e.getKey(), e.getValue());
+                            updatePartitionSingleMap(e.getKey(), e.getValue());
+                        }
                     }
                 }
             }

@@ -1748,10 +1748,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             ((IgniteDiagnosticAware)fut).addDiagnosticRequest(ctx);
     }
 
-    private boolean supportsMergeExchanges(ClusterNode node) {
-        return exchangeProtocolVersion(node.version()) > 1;
-    }
-
     /** */
     private volatile AffinityTopologyVersion exchMergeTestWaitVer;
 
@@ -1870,7 +1866,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                     ClusterNode node = evt.eventNode();
 
-                    if (!supportsMergeExchanges(node)) {
+                    if (!curFut.context().supportsMergeExchanges(node)) {
                         log.info("Stop merge, node does not support merge: " + node);
 
                         break;
