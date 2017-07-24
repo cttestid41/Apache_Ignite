@@ -1226,19 +1226,21 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         if (cctx.kernalContext().clientNode()) {
-            msg = newGridDhtPartitionsSingleMessage (exchangeId(),
+            msg = new GridDhtPartitionsSingleMessage(exchangeId(),
                 true,
                 null,
                 true);
         }
         else {
-            msg = cctx.exchange().createPartitionsSingleMessage(
-             exchangeId(), false, true);}
+            msg = cctx.exchange().createPartitionsSingleMessage(exchangeId(),
+                false,
+                true);
 
             Map<Integer, Map<Integer, Long>> partHistReserved0 = partHistReserved;
 
-        if (partHistReserved0 != null)
-            msg.partitionHistoryCounters(partHistReserved0);}
+            if (partHistReserved0 != null)
+                msg.partitionHistoryCounters(partHistReserved0);
+        }
 
         if (stateChangeExchange() && changeGlobalStateE != null)
             msg.setError(changeGlobalStateE);
@@ -1647,7 +1649,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void onReceiveSingleMessage(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         assert !node.isDaemon() : node;
         assert msg != null;
-        assert exchId.equals(msg.exchangeId()) : msg;assert !cctx.kernalContext().clientNode();
+        assert exchId.equals(msg.exchangeId()) : msg;
+        assert !cctx.kernalContext().clientNode();
 
         if (msg.restoreState()) {
             InitNewCoordinatorFuture newCrdFut0;
@@ -1665,7 +1668,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
 
         if (!msg.client()) {
-if (!msg.client()) {        assert msg.lastVersion() != null : msg;
+            assert msg.lastVersion() != null : msg;
 
             updateLastVersion(msg.lastVersion());
         }
