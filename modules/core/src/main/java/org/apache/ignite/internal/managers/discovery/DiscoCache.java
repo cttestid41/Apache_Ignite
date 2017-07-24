@@ -292,7 +292,7 @@ public class DiscoCache {
      * @param id Node ID.
      * @return Node.
      */
-    public @Nullable ClusterNode node(UUID id) {
+    @Nullable public ClusterNode node(UUID id) {
         return nodeMap.get(id);
     }
 

@@ -302,6 +302,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                         GridDhtPartitionExchangeId exchId = msg.exchangeId();
 
                         log.info("Waiting for coordinator initialization [node=" + node.id() +
+                            ", nodeOrder=" + node.order() +
                             ", ver=" + (exchId != null ? exchId.topologyVersion() : null) + ']');
 
                         crdInitFut.listen(new CI1<IgniteInternalFuture>() {
@@ -1763,8 +1764,10 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         this.exchMergeTestWaitVer = exchMergeTestWaitVer;
     }
 
-    public void mergeExchanges(GridDhtPartitionsExchangeFuture curFut, AffinityTopologyVersion resVer)
+    public void mergeExchanges(final GridDhtPartitionsExchangeFuture curFut, GridDhtPartitionsFullMessage msg)
         throws IgniteInterruptedCheckedException {
+        AffinityTopologyVersion resVer = msg.resultTopologyVersion();
+
         exchWorker.waitForExchangeFuture(resVer);
 
         for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
@@ -1782,9 +1785,18 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 log.info("Merge exchange future on finish [curFut=" + curFut.initialVersion() +
                     ", mergedFut=" + fut.initialVersion() + ']');
 
+                DiscoveryEvent evt = fut.discoveryEvent();
+
                 curFut.context().events().addEvent(fut.initialVersion(),
                     fut.discoveryEvent(),
                     fut.discoCache());
+
+                if (evt.type() == EVT_NODE_JOINED) {
+                    final GridDhtPartitionsSingleMessage pendingMsg = fut.mergeJoinExchangeOnDone(curFut);
+
+                    if (pendingMsg != null)
+                        curFut.waitAndReplayToNode(evt.eventNode(), pendingMsg);
+                }
 
                 exchWorker.futQ.remove(fut);
             }

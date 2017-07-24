@@ -160,11 +160,17 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         cp.resTopVer = resTopVer;
     }
 
+    /**
+     * @param resTopVer Result topology version.
+     */
     public void resultTopologyVersion(AffinityTopologyVersion resTopVer) {
         this.resTopVer = resTopVer;
     }
 
-    AffinityTopologyVersion resultTopologyVersion() {
+    /**
+     * @return Result topology version.
+     */
+    public AffinityTopologyVersion resultTopologyVersion() {
         return resTopVer;
     }
 

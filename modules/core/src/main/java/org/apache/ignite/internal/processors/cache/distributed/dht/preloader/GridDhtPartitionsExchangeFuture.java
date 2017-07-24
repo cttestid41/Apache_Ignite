@@ -1299,6 +1299,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private void sendAllPartitions(
         GridDhtPartitionsFullMessage msg,
         Collection<ClusterNode> nodes,
+        Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs,
         Map<Integer, CacheGroupAffinityMessage> joinedNodeAff) {
         boolean singleNode = nodes.size() == 1;
 
@@ -1592,7 +1593,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param fut Current exchange to merge with.
      * @return {@code True} if need wait for message from joined server node.
      */
-    public boolean mergeJoinExchange(final GridDhtPartitionsExchangeFuture fut) {
+    public boolean mergeJoinExchange(GridDhtPartitionsExchangeFuture fut) {
         boolean wait;
 
         synchronized (this) {
@@ -1613,6 +1614,21 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         return wait;
     }
 
+    @Nullable public GridDhtPartitionsSingleMessage mergeJoinExchangeOnDone(GridDhtPartitionsExchangeFuture fut) {
+        synchronized (this) {
+            assert !isDone();
+            assert !initFut.isDone();
+            assert mergedWith == null;
+            assert state == null;
+
+            state = ExchangeLocalState.MERGED;
+
+            mergedWith = fut;
+
+            return pendingJoinMsg;
+        }
+    }
+
     /**
      * @param node
      * @param msg
@@ -1626,26 +1642,41 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         boolean done = false;
 
+        FinishState finishState0 = null;
+
         synchronized (this) {
-            boolean process = mergedJoinExchMsgs != null &&
-                mergedJoinExchMsgs.containsKey(node.id()) &&
-                mergedJoinExchMsgs.get(node.id()) == null;
+            if (state == ExchangeLocalState.DONE) {
+                assert finishState != null;
 
-            log.info("Merge server join exchange, received message [curFut=" + initialVersion() +
-                ", node=" + node.id() +
-                ", msgVer=" + msg.exchangeId().topologyVersion() +
-                ", process=" + process +
-                ", awaited=" + awaitMergedMsgs + ']');
-
-            if (process) {
-                mergedJoinExchMsgs.put(node.id(), msg);
-
-                assert awaitMergedMsgs > 0 : awaitMergedMsgs;
-
-                awaitMergedMsgs--;
-
-                done = awaitMergedMsgs == 0;
+                finishState0 = finishState;
             }
+            else {
+                boolean process = mergedJoinExchMsgs != null &&
+                    mergedJoinExchMsgs.containsKey(node.id()) &&
+                    mergedJoinExchMsgs.get(node.id()) == null;
+
+                log.info("Merge server join exchange, received message [curFut=" + initialVersion() +
+                    ", node=" + node.id() +
+                    ", msgVer=" + msg.exchangeId().topologyVersion() +
+                    ", process=" + process +
+                    ", awaited=" + awaitMergedMsgs + ']');
+
+                if (process) {
+                    mergedJoinExchMsgs.put(node.id(), msg);
+
+                    assert awaitMergedMsgs > 0 : awaitMergedMsgs;
+
+                    awaitMergedMsgs--;
+
+                    done = awaitMergedMsgs == 0;
+                }
+            }
+        }
+
+        if (finishState0 != null) {
+            sendAllPartitionsToNode(finishState0, msg, node.id());
+
+            return;
         }
 
         if (done)
@@ -1675,7 +1706,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             return;
         }
-
 
         if (!msg.client()) {
             assert msg.lastVersion() != null : msg;
@@ -1722,6 +1752,22 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         });
     }
 
+    public void waitAndReplayToNode(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
+        listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
+            @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
+                FinishState finishState0;
+
+                synchronized (GridDhtPartitionsExchangeFuture.this) {
+                    finishState0 = finishState;
+                }
+
+                assert finishState0 != null;
+
+                sendAllPartitionsToNode(finishState0, msg, node.id());
+            }
+        });
+    }
+
     /**
      * @param nodeId Node ID.
      * @param msg Client's message.
@@ -1754,7 +1800,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param nodeId Sender node.
      * @param msg Message.
      */
-    private void processSingleMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
+    void processSingleMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
         if (msg.client()) {
             waitAndReplyToClient(nodeId, msg);
 
@@ -2271,10 +2317,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             else {
                 List<ClusterNode> nodes;
 
+                Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs0;
+
                 synchronized (this) {
                     srvNodes.remove(cctx.localNode());
 
                     nodes = new ArrayList<>(srvNodes);
+
+                    mergedJoinExchMsgs0 = mergedJoinExchMsgs;
 
                     if (mergedJoinExchMsgs != null) {
                         for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : mergedJoinExchMsgs.entrySet()) {
@@ -2315,7 +2365,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
 
                 if (!nodes.isEmpty())
-                    sendAllPartitions(msg, nodes, joinedNodeAff);
+                    sendAllPartitions(msg, nodes, mergedJoinExchMsgs0, joinedNodeAff);
 
                 onDone(exchCtx.events().topologyVersion(), err);
 
@@ -2497,11 +2547,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         if (msg.restoreState()) {
             try {
-                GridDhtPartitionsSingleMessage res = cctx.exchange().createPartitionsSingleMessage(msg.exchangeId(),
+                assert msg.restoreExchangeId() != null : msg;
+
+                GridDhtPartitionsSingleMessage res = cctx.exchange().createPartitionsSingleMessage(
+                    msg.restoreExchangeId(),
                     cctx.kernalContext().clientNode(),
                     true);
 
-                if (localJoinExchange())
+                if (localJoinExchange() && finishState0 == null)
                     res.cacheGroupsAffinityRequest(exchCtx.groupsAffinityRequestOnJoin());
 
                 res.restoreState(true);
@@ -2599,7 +2652,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     log.info("Received full message, need merge [curFut=" + initialVersion() +
                         ", resVer=" + msg.resultTopologyVersion() + ']');
 
-                    cctx.exchange().mergeExchanges(this, msg.resultTopologyVersion());
+                    cctx.exchange().mergeExchanges(this, msg);
                 }
 
                 if (localJoinExchange())
@@ -2972,11 +3025,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             boolean process = fullMsg == null;
 
-            Map<ClusterNode, GridDhtPartitionsSingleMessage> msgs0 = newCrdFut.messages();
-
             assert msgs.isEmpty() : msgs;
 
-            for (Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e : msgs0.entrySet()) {
+            for (Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e : newCrdFut.messages().entrySet()) {
                 GridDhtPartitionsSingleMessage msg = e.getValue();
 
                 if (!msg.client()) {
@@ -2996,6 +3047,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                     finishState = new FinishState(crd.id(), fullMsg.resultTopologyVersion(), fullMsg);
                 }
+
+                fullMsg.exchangeId(exchId);
 
                 processFullMessage(false, null, fullMsg);
 
@@ -3017,7 +3070,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         }
                     }
 
-                    sendAllPartitions(fullMsg, msgs.keySet(), joinedNodeAff);
+                    sendAllPartitions(fullMsg, msgs.keySet(), newCrdFut.mergedJoinExchangeMessages(), joinedNodeAff);
                 }
 
                 return;

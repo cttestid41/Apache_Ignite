@@ -32,6 +32,9 @@ import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.events.DiscoveryEvent;
+import org.apache.ignite.events.Event;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteKernal;
@@ -40,12 +43,13 @@ import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
-import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.PA;
 import org.apache.ignite.lang.IgniteBiPredicate;
+import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -342,7 +346,100 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testMergeExchangeCoordinatorChange() throws Exception {
+    public void testMergeJoinExchangesCoordinatorChange1_4_servers() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            mergeJoinExchangesCoordinatorChange1(4, mode);
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeJoinExchangesCoordinatorChange1_8_servers() throws Exception {
+        for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
+            mergeJoinExchangesCoordinatorChange1(8, mode);
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @param srvs Number of server nodes.
+     * @param mode Test mode.
+     * @throws Exception If failed.
+     */
+    private void mergeJoinExchangesCoordinatorChange1(final int srvs, CoordinatorChangeMode mode)
+        throws Exception
+    {
+        testSpi = true;
+
+        Ignite srv0 = startGrids(srvs);
+
+        mergeExchangeWaitVersion(srv0, 6);
+
+        CountDownLatch latch = blockExchangeFinish(srvs, mode);
+
+        IgniteInternalFuture<?> fut = startGrids(srv0, srvs, 2);
+
+        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+            fail("Failed to wait for expected messages.");
+
+        stopGrid(getTestIgniteInstanceName(0), true, false);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeJoinExchangesCoordinatorChange2_4_servers() throws Exception {
+        mergeJoinExchangeCoordinatorChange2(4, 2, F.asList(1, 2, 3, 4), F.asList(5));
+
+        stopAllGrids();
+
+        mergeJoinExchangeCoordinatorChange2(4, 2, F.asList(1, 2, 3, 5), F.asList(4));
+    }
+
+    /**
+     * @param srvs Number of server nodes.
+     * @param startNodes Number of nodes to start.
+     * @param blockNodes Nodes which do not receive messages.
+     * @param waitMsgNodes Nodes which should receive messages.
+     * @throws Exception If failed.
+     */
+    private void mergeJoinExchangeCoordinatorChange2(final int srvs,
+        final int startNodes,
+        List<Integer> blockNodes,
+        List<Integer> waitMsgNodes) throws Exception
+    {
+        testSpi = true;
+
+        Ignite srv0 = startGrids(srvs);
+
+        mergeExchangeWaitVersion(srv0, srvs + startNodes);
+
+        CountDownLatch latch = blockExchangeFinish(srv0, srvs + 1, blockNodes, waitMsgNodes);
+
+        IgniteInternalFuture<?> fut = startGrids(srv0, srvs, startNodes);
+
+        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+            fail("Failed to wait for expected messages.");
+
+        stopGrid(getTestIgniteInstanceName(0), true, false);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeExchangeCoordinatorChange4() throws Exception {
         testSpi = true;
 
         final int srvs = 4;
@@ -353,7 +450,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         final AtomicInteger idx = new AtomicInteger(srvs);
 
-        CountDownLatch latch = blockExchangeFinish(srv0, 5, F.asList(2, 3, 4, 5), F.asList(1));
+        CountDownLatch latch = blockExchangeFinish(srv0, 5, F.asList(1, 2, 3, 4), F.asList(5));
 
         IgniteInternalFuture<?> fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
             @Override public Void call() throws Exception {
@@ -660,6 +757,52 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }, 5000);
 
         assertTrue(wait);
+    }
+
+    /**
+     * @param node Some existing node.
+     * @param startIdx Start node index.
+     * @param cnt Number of nodes.
+     * @return Start future.
+     * @throws Exception If failed.
+     */
+    private IgniteInternalFuture startGrids(Ignite node, int startIdx, int cnt) throws Exception {
+        GridCompoundFuture fut = new GridCompoundFuture();
+
+        for (int i = 0; i < cnt; i++) {
+            final CountDownLatch latch = new CountDownLatch(1);
+
+            node.events().localListen(new IgnitePredicate<Event>() {
+                @Override public boolean apply(Event evt) {
+                    log.info("Got event: " + ((DiscoveryEvent)evt).eventNode().id());
+
+                    latch.countDown();
+
+                    return false;
+                }
+            }, EventType.EVT_NODE_JOINED);
+
+            final int nodeIdx = startIdx + i;
+
+            IgniteInternalFuture fut0 = GridTestUtils.runAsync(new Callable() {
+                @Override public Object call() throws Exception {
+                    log.info("Start new node: " + nodeIdx);
+
+                    startGrid(nodeIdx);
+
+                    return null;
+                }
+            }, "start-node-" + nodeIdx);
+
+            if (!latch.await(5, TimeUnit.SECONDS))
+                fail();
+
+            fut.add(fut0);
+        }
+
+        fut.markInitialized();
+
+        return fut;
     }
 
     /**

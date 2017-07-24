@@ -1339,7 +1339,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         throws IgniteCheckedException {
         final ExchangeDiscoveryEvents evts = fut.context().events();
 
-        log.info("mergeExchangesInitAffinityOnServerLeft [topVer=" + evts.discoveryCache().version() + ']');
+        log.info("mergeExchangesOnServerJoin [topVer=" + evts.discoveryCache().version() + ']');
 
         assert evts.serverJoin() && !evts.serverLeft();
 
