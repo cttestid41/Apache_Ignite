@@ -138,7 +138,7 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
         flags = restoreState ? (byte)(flags | RESTORE_STATE_FLAG_MASK) : (byte)(flags & ~RESTORE_STATE_FLAG_MASK);
     }
 
-    boolean restoreState() {
+    public boolean restoreState() {
         return (flags & RESTORE_STATE_FLAG_MASK) != 0;
     }
 

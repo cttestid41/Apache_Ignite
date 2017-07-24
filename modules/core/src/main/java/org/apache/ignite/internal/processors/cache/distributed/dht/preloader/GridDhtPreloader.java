@@ -173,13 +173,15 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     @Override public void onTopologyChanged(GridDhtPartitionsExchangeFuture lastFut) {
-        supplier.onTopologyChanged(lastFut.topologyVersion());
+        supplier.onTopologyChanged(lastFut.initialVersion());
 
         demander.onTopologyChanged(lastFut);
     }
 
     /** {@inheritDoc} */
     @Override public GridDhtPreloaderAssignments assign(GridDhtPartitionExchangeId exchId, GridDhtPartitionsExchangeFuture exchFut) {
+        assert exchFut == null || exchFut.isDone();
+
         // No assignments for disabled preloader.
         GridDhtPartitionTopology top = grp.topology();
 
@@ -190,8 +192,8 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
         assert exchFut == null || exchFut.context().events().topologyVersion().equals(top.topologyVersion()) :
             "Topology version mismatch [exchId=" + exchId +
-                ", grp=" + grp.name() +
-                ", topVer=" + top.topologyVersion() + ']';
+            ", grp=" + grp.name() +
+            ", topVer=" + top.topologyVersion() + ']';
 
         GridDhtPreloaderAssignments assigns = new GridDhtPreloaderAssignments(exchId, top.topologyVersion());
 

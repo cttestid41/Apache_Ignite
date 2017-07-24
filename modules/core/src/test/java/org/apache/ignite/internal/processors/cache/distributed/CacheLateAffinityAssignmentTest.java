@@ -1246,7 +1246,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
 
         for (GridDhtPartitionsExchangeFuture f : exFutures) {
             //Shouldn't contains staled futures.
-            assertTrue(f.topologyVersion().topologyVersion() >= nodeJoinTopVer);
+            assertTrue(f.initialVersion().topologyVersion() >= nodeJoinTopVer);
         }
     }
 
@@ -2511,7 +2511,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             for (int i = futs.size() - 1; i >= 0; i--) {
                 GridDhtPartitionsExchangeFuture fut = futs.get(i);
 
-                if (fut.topologyVersion().equals(topVer0)) {
+                if (fut.initialVersion().equals(topVer0)) {
                     evt = fut.discoveryEvent();
 
                     break;

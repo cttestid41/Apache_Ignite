@@ -1538,7 +1538,7 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                     if (!allowOverwrite && !topVer.equals(reqTopVer)) {
                         curFut.onDone(new IgniteCheckedException(
                             "DataStreamer will retry data transfer at stable topology. " +
-                                "[reqTop=" + reqTopVer + " ,topVer=" + topVer + ", node=local]"));
+                                "[reqTop=" + reqTopVer + ", topVer=" + topVer + ", node=local]"));
                     }
                     else if (loc || allowOverwrite || fut.isDone()) {
                         IgniteInternalFuture<Object> callFut = ctx.closure().callLocalSafe(

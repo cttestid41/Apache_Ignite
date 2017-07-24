@@ -40,6 +40,7 @@ import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
@@ -365,7 +366,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         if (latch != null && !latch.await(5, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
-        stopGrid(0);
+        stopGrid(getTestIgniteInstanceName(0), true, false);
 
         fut.get();
 
@@ -654,7 +655,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         boolean wait = GridTestUtils.waitForCondition(new PA() {
             @Override public boolean apply() {
-                return exch.lastTopologyFuture().topologyVersion().topologyVersion() >= topVer;
+                return exch.lastTopologyFuture().initialVersion().topologyVersion() >= topVer;
             }
         }, 5000);
 

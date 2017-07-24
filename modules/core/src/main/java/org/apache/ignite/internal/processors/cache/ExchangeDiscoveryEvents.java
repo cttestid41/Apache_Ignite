@@ -65,7 +65,7 @@ public class ExchangeDiscoveryEvents {
      * @param fut Future.
      */
     ExchangeDiscoveryEvents(GridDhtPartitionsExchangeFuture fut) {
-        addEvent(fut.topologyVersion(), fut.discoveryEvent(), fut.discoCache());
+        addEvent(fut.initialVersion(), fut.discoveryEvent(), fut.discoCache());
     }
 
     boolean groupAddedOnExchange(int grpId, UUID rcvdFrom) {

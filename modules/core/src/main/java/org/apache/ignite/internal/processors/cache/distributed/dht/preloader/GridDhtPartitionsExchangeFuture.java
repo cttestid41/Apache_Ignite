@@ -246,6 +246,15 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @GridToStringExclude
     private InitNewCoordinatorFuture newCrdFut;
 
+    /** */
+    @GridToStringExclude
+    private GridDhtPartitionsExchangeFuture mergedWith;
+
+    /** */
+    @GridToStringExclude
+    private GridDhtPartitionsSingleMessage pendingJoinMsg;
+
+
     /**
      * @param cctx Cache context.
      * @param busyLock Busy lock.
@@ -315,16 +324,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         this.affChangeMsg = affChangeMsg;
     }
 
-    private AffinityTopologyVersion initialVersion() {
+    public AffinityTopologyVersion initialVersion() {
         return exchId.topologyVersion();
     }
 
     /** {@inheritDoc} */
     @Override public AffinityTopologyVersion topologyVersion() {
-        return exchId.topologyVersion();
-    }
+        assert isDone();
 
-    @Override public AffinityTopologyVersion resultTopologyVersion() {
         return exchCtx.events().topologyVersion();
     }
 
@@ -339,6 +346,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /**
      * @return Discovery cache.
+     *
+     * TODO 5578 review usages, rename initialDiscoveryEvent
      */
     public DiscoCache discoCache() {
         return discoCache;
@@ -426,6 +435,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /**
      * @return Discovery event.
+     *
+     * TODO 5578 review usages, rename initialDiscoveryEvent
      */
     public DiscoveryEvent discoveryEvent() {
         return discoEvt;
@@ -479,7 +490,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         exchCtx = new ExchangeContext(this);
 
         try {
-            AffinityTopologyVersion topVer = topologyVersion();
+            AffinityTopologyVersion topVer = initialVersion();
 
             srvNodes = new ArrayList<>(discoCache.serverNodes());
 
@@ -574,6 +585,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 if (fut != null)
                     fut.get();
+
+                cctx.exchange().coordinatorInitialized();
             }
 
             updateTopologies(crdNode);
@@ -661,7 +674,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             cctx.database().readCheckpointAndRestoreMemory(startDescs);
         }
 
-        cctx.cache().startCachesOnLocalJoin(caches, topologyVersion());
+        cctx.cache().startCachesOnLocalJoin(caches, initialVersion());
     }
 
     /**
@@ -704,7 +717,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 boolean updateTop = exchId.topologyVersion().equals(grp.localStartVersion());
 
                 if (updateTop && clientTop != null) {
-                    top.update(topologyVersion(),
+                    top.update(initialVersion(),
                         clientTop.partitionMap(true),
                         clientTop.updateCounters(false),
                         Collections.<Integer>emptySet());
@@ -737,7 +750,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (log.isInfoEnabled()) {
                 log.info("Start activation process [nodeId=" + cctx.localNodeId() +
                     ", client=" + cctx.kernalContext().clientNode() +
-                    ", topVer=" + topologyVersion() + "]");
+                    ", topVer=" + initialVersion() + "]");
             }
 
             try {
@@ -757,13 +770,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 if (log.isInfoEnabled()) {
                     log.info("Successfully activated caches [nodeId=" + cctx.localNodeId() +
                         ", client=" + cctx.kernalContext().clientNode() +
-                        ", topVer=" + topologyVersion() + "]");
+                        ", topVer=" + initialVersion() + "]");
                 }
             }
             catch (Exception e) {
                 U.error(log, "Failed to activate node components [nodeId=" + cctx.localNodeId() +
                     ", client=" + cctx.kernalContext().clientNode() +
-                    ", topVer=" + topologyVersion() + "]", e);
+                    ", topVer=" + initialVersion() + "]", e);
 
                 changeGlobalStateE = e;
 
@@ -778,7 +791,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (log.isInfoEnabled()) {
                 log.info("Start deactivation process [nodeId=" + cctx.localNodeId() +
                     ", client=" + cctx.kernalContext().clientNode() +
-                    ", topVer=" + topologyVersion() + "]");
+                    ", topVer=" + initialVersion() + "]");
             }
 
             try {
@@ -792,13 +805,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     log.info("Successfully deactivated data structures, services and caches [" +
                         "nodeId=" + cctx.localNodeId() +
                         ", client=" + cctx.kernalContext().clientNode() +
-                        ", topVer=" + topologyVersion() + "]");
+                        ", topVer=" + initialVersion() + "]");
                 }
             }
             catch (Exception e) {
                 U.error(log, "Failed to deactivate node components [nodeId=" + cctx.localNodeId() +
                     ", client=" + cctx.kernalContext().clientNode() +
-                    ", topVer=" + topologyVersion() + "]", e);
+                    ", topVer=" + initialVersion() + "]", e);
 
                 changeGlobalStateE = e;
             }
@@ -899,12 +912,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                     GridAffinityAssignmentCache aff = grp.affinity();
 
-                    aff.initialize(topologyVersion(), aff.idealAssignment());
+                    aff.initialize(initialVersion(), aff.idealAssignment());
                 }
             }
         }
 
-        onDone(topologyVersion());
+        onDone(initialVersion());
     }
 
     /**
@@ -1010,7 +1023,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @throws IgniteCheckedException If failed.
      */
     private void waitPartitionRelease() throws IgniteCheckedException {
-        IgniteInternalFuture<?> partReleaseFut = cctx.partitionReleaseFuture(topologyVersion());
+        IgniteInternalFuture<?> partReleaseFut = cctx.partitionReleaseFuture(initialVersion());
 
         // Assign to class variable so it will be included into toString() method.
         this.partReleaseFut = partReleaseFut;
@@ -1174,7 +1187,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void dumpPendingObjects() {
         U.warn(cctx.kernalContext().cluster().diagnosticLog(),
-            "Failed to wait for partition release future [topVer=" + topologyVersion() +
+            "Failed to wait for partition release future [topVer=" + initialVersion() +
             ", node=" + cctx.localNodeId() + "]. Dumping pending objects that might be the cause: ");
 
         try {
@@ -1379,7 +1392,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (!done.compareAndSet(false, true))
             return false;
 
-        log.info("Finish exchange future [startVer=" + topologyVersion() + ", resVer=" + res + ", err=" + err + ']');
+        log.info("Finish exchange future [startVer=" + initialVersion() +
+            ", resVer=" + res +
+            ", err=" + err + ']');
 
         assert res != null || err != null;
 
@@ -1488,7 +1503,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (discoEvt instanceof DiscoveryCustomEvent)
                 ((DiscoveryCustomEvent)discoEvt).customMessage(null);
 
-            cctx.exchange().lastFinishedFuture(this);
+            if (err == null)
+                cctx.exchange().lastFinishedFuture(this);
 
             return true;
         }
@@ -1528,12 +1544,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
     }
 
-    /** */
-    private GridDhtPartitionsExchangeFuture mergedWith;
-
-    /** */
-    private GridDhtPartitionsSingleMessage pendingJoinMsg;
-
     private boolean addMergedJoinExchange(ClusterNode node, @Nullable GridDhtPartitionsSingleMessage msg) {
         assert Thread.holdsLock(this);
         assert node != null;
@@ -1552,14 +1562,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 mergedJoinExchMsgs = new LinkedHashMap<>();
 
             if (msg != null) {
-                log.info("Merge server join exchange, message received [curFut=" + topologyVersion() +
+                log.info("Merge server join exchange, message received [curFut=" + initialVersion() +
                     ", node=" + nodeId + ']');
 
                 mergedJoinExchMsgs.put(nodeId, msg);
             }
             else {
                 if (cctx.discovery().alive(nodeId)) {
-                    log.info("Merge server join exchange, wait for message [curFut=" + topologyVersion() +
+                    log.info("Merge server join exchange, wait for message [curFut=" + initialVersion() +
                         ", node=" + nodeId + ']');
 
                     wait = true;
@@ -1569,7 +1579,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     awaitMergedMsgs++;
                 }
                 else {
-                    log.info("Merge server join exchange, awaited node left [curFut=" + topologyVersion() +
+                    log.info("Merge server join exchange, awaited node left [curFut=" + initialVersion() +
                         ", node=" + nodeId + ']');
                 }
             }
@@ -1621,7 +1631,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 mergedJoinExchMsgs.containsKey(node.id()) &&
                 mergedJoinExchMsgs.get(node.id()) == null;
 
-            log.info("Merge server join exchange, received message [curFut=" + topologyVersion() +
+            log.info("Merge server join exchange, received message [curFut=" + initialVersion() +
                 ", node=" + node.id() +
                 ", msgVer=" + msg.exchangeId().topologyVersion() +
                 ", process=" + process +
@@ -2104,10 +2114,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void finishExchangeOnCoordinator() {
         try {
-            log.info("finishExchangeOnCoordinator [topVer=" + topologyVersion() +
-                ", resVer=" + exchCtx.events().topologyVersion() + ']');
-
             AffinityTopologyVersion resTopVer = exchCtx.events().topologyVersion();
+
+            log.info("finishExchangeOnCoordinator [topVer=" + initialVersion() +
+                ", resVer=" + resTopVer + ']');
 
             Map<Integer, CacheGroupAffinityMessage> idealAffDiff = null;
 
@@ -2586,7 +2596,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             if (exchCtx.mergeExchanges()) {
                 if (msg.resultTopologyVersion() != null && !initialVersion().equals(msg.resultTopologyVersion())) {
-                    log.info("Received full message, need merge [curFut=" + topologyVersion() +
+                    log.info("Received full message, need merge [curFut=" + initialVersion() +
                         ", resVer=" + msg.resultTopologyVersion() + ']');
 
                     cctx.exchange().mergeExchanges(this, msg.resultTopologyVersion());
@@ -2715,7 +2725,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             updatePartitionFullMap(partsMsg);
                         }
 
-                        onDone(topologyVersion());
+                        onDone(initialVersion());
                     }
                     else {
                         if (log.isDebugEnabled()) {
@@ -2785,7 +2795,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (isDone() || !enterBusy())
             return;
 
-        cctx.mvcc().removeExplicitNodeLocks(node.id(), topologyVersion());
+        cctx.mvcc().removeExplicitNodeLocks(node.id(), initialVersion());
 
         try {
             onDiscoveryEvent(new IgniteRunnable() {
@@ -2871,10 +2881,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                 for (int i = 0; i < grp.affinity().partitions(); i++)
                                     affAssignment.add(empty);
 
-                                grp.affinity().initialize(topologyVersion(), affAssignment);
+                                grp.affinity().initialize(initialVersion(), affAssignment);
                             }
 
-                            onDone(topologyVersion());
+                            onDone(initialVersion());
 
                             return;
                         }
@@ -2954,6 +2964,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void onBecomeCoordinator(InitNewCoordinatorFuture newCrdFut) {
         boolean allRcvd = false;
+
+        cctx.exchange().coordinatorInitialized();
 
         if (newCrdFut.restoreState()) {
             GridDhtPartitionsFullMessage fullMsg = newCrdFut.fullMessage();
@@ -3143,14 +3155,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             if (crd != null) {
                 if (!crd.isLocal()) {
-                    diagCtx.exchangeInfo(crd.id(), topologyVersion(), "Exchange future waiting for coordinator " +
-                        "response [crd=" + crd.id() + ", topVer=" + topologyVersion() + ']');
+                    diagCtx.exchangeInfo(crd.id(), initialVersion(), "Exchange future waiting for coordinator " +
+                        "response [crd=" + crd.id() + ", topVer=" + initialVersion() + ']');
                 }
                 else if (!remaining.isEmpty()){
                     UUID nodeId = remaining.iterator().next();
 
-                    diagCtx.exchangeInfo(nodeId, topologyVersion(), "Exchange future on coordinator waiting for " +
-                        "server response [node=" + nodeId + ", topVer=" + topologyVersion() + ']');
+                    diagCtx.exchangeInfo(nodeId, initialVersion(), "Exchange future on coordinator waiting for " +
+                        "server response [node=" + nodeId + ", topVer=" + initialVersion() + ']');
                 }
             }
         }
@@ -3160,8 +3172,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return Short information string.
      */
     public String shortInfo() {
-        return "GridDhtPartitionsExchangeFuture [topVer=" + topologyVersion() +
-            ", evt=" + (discoEvt != null ? discoEvt.type() : -1) +
+        return "GridDhtPartitionsExchangeFuture [topVer=" + initialVersion() +
+            ", evt=" + (discoEvt != null ? IgniteUtils.gridEventName(discoEvt.type()) : -1) +
             ", evtNode=" + (discoEvt != null ? discoEvt.eventNode() : null) +
             ", done=" + isDone() + ']';
     }

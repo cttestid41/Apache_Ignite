@@ -230,7 +230,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         U.writeLock(lock);
 
         try {
-            AffinityTopologyVersion exchTopVer = exchFut.topologyVersion();
+            AffinityTopologyVersion exchTopVer = exchFut.initialVersion();
 
             assert exchTopVer.compareTo(topVer) > 0 : "Invalid topology version [topVer=" + topVer +
                 ", exchTopVer=" + exchTopVer +
@@ -437,7 +437,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     ExchangeDiscoveryEvents evts = exchFut.context().events();
 
-                    assert topVer.equals(exchFut.topologyVersion()) : "Invalid topology version [topVer=" + topVer +
+                    assert topVer.equals(exchFut.initialVersion()) : "Invalid topology version [topVer=" + topVer +
                         ", exchId=" + exchFut.exchangeId() + ']';
 
                     topVer = evts.topologyVersion();

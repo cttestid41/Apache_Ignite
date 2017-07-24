@@ -56,10 +56,6 @@ public class ClientCacheDhtTopologyFuture extends GridDhtTopologyFutureAdapter
         onDone(e);
     }
 
-    @Override public AffinityTopologyVersion resultTopologyVersion() {
-        return topologyVersion();
-    }
-
     /**
      * @param grp Cache group.
      * @param topNodes Topology nodes.
@@ -71,12 +67,17 @@ public class ClientCacheDhtTopologyFuture extends GridDhtTopologyFutureAdapter
     }
 
     /** {@inheritDoc} */
+    @Override public AffinityTopologyVersion initialVersion() {
+        return topVer;
+    }
+
+    /** {@inheritDoc} */
     @Override public AffinityTopologyVersion topologyVersion() {
         return topVer;
     }
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return "ClientCacheDhtTopologyFuture [topVer=" + topologyVersion() + ']';
+        return "ClientCacheDhtTopologyFuture [topVer=" + topVer + ']';
     }
 }
