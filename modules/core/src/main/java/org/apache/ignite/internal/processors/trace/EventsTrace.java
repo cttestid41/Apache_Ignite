@@ -42,6 +42,9 @@ public class EventsTrace implements Message, IgniteTraceAware {
     private long[] traceStamps;
 
     /** */
+    private String[] traceThreads;
+
+    /** */
     private int numTracePoints;
 
     /** */
@@ -53,14 +56,6 @@ public class EventsTrace implements Message, IgniteTraceAware {
     private List<EventsTrace> rmtTraces;
 
     /**
-     *
-     */
-    public EventsTrace() {
-        traceIds = new byte[4];
-        traceStamps = new long[4];
-    }
-
-    /**
      * @param point Trace point.
      */
     @Override public synchronized void recordTracePoint(TracePoint point) {
@@ -69,6 +64,11 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
         traceIds[numTracePoints] = (byte)point.ordinal();
         traceStamps[numTracePoints] = System.nanoTime() / 1000;
+
+        String curThread = Thread.currentThread().getName();
+
+        if (numTracePoints == 0 || !F.eq(traceThreads[numTracePoints - 1], curThread))
+            traceThreads[numTracePoints] = curThread;
 
         numTracePoints++;
     }
@@ -108,6 +108,7 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
             traceIds = new byte[4];
             traceStamps = new long[4];
+            traceThreads = new String[4];
         }
         else {
             byte[] cp = new byte[traceIds.length * 2];
@@ -121,12 +122,18 @@ public class EventsTrace implements Message, IgniteTraceAware {
             System.arraycopy(traceStamps, 0, stampCp, 0, traceStamps.length);
 
             traceStamps = stampCp;
+
+            String[] threadsCp = new String[traceThreads.length * 2];
+
+            System.arraycopy(traceThreads, 0, threadsCp, 0, traceThreads.length);
+
+            traceThreads = threadsCp;
         }
     }
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 5;
+        return 6;
     }
 
     /** {@inheritDoc} */
@@ -167,6 +174,12 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
             case 4:
                 if (!writer.writeLongArray("traceStamps", traceStamps))
+                    return false;
+
+                writer.incrementState();
+
+            case 5:
+                if (!writer.writeObjectArray("traceThreads", traceThreads, MessageCollectionItemType.STRING))
                     return false;
 
                 writer.incrementState();
@@ -224,6 +237,14 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
                 reader.incrementState();
 
+            case 5:
+                traceThreads = reader.readObjectArray("traceThreads", MessageCollectionItemType.STRING, String.class);
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
         }
 
         return reader.afterMessageRead(EventsTrace.class);
@@ -250,18 +271,31 @@ public class EventsTrace implements Message, IgniteTraceAware {
         if (nodeId != null) {
             sb.append("[").append(nodeId).append("][");
         }
+        else
+            sb.append("[");
 
         sb.append("\n");
 
         long firstNioRcv = 0;
         long lastNioSnd = 0;
+        long firstLsnrInvoke = 0;
 
         boolean calcDelta = false;
+
+        long updBase = 0;
+        String thread = null;
 
         for (int i = 0; i < numTracePoints; i++) {
             TracePoint tp = TracePoint.fromOrdinal(traceIds[i]);
 
-            sb.append(ident).append("  ").append(tp);
+            String traceThread = traceThreads[i];
+
+            if (traceThread == null)
+                traceThread = thread;
+            else
+                thread = traceThread;
+
+            sb.append(ident).append("  ").append(tp).append("[").append(traceThread).append("]");
 
             if (calcDelta)
                 sb.append(" (prev +").append(traceStamps[i] - traceStamps[i - 1]).append("us)");
@@ -281,9 +315,19 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
                 calcDelta = false;
             }
+            else if (tp == TracePoint.MSG_LISTENER_INVOKE) {
+                if (firstLsnrInvoke == 0)
+                    firstLsnrInvoke = traceStamps[i];
+            }
             else
                 calcDelta = true;
+
+            if (tp == TracePoint.MSG_LISTENER_INVOKE && updBase == 0)
+                updBase = traceStamps[i];
         }
+
+        if (updBase == 0 && numTracePoints > 0)
+            updBase = traceStamps[0];
 
         long latency = traceStamps[traceStamps.length - 1] - traceStamps[0];
 
@@ -291,6 +335,7 @@ public class EventsTrace implements Message, IgniteTraceAware {
             .append(latency).append("us\n");
 
         if (nodeId != null) {
+            sb.append(ident).append("  Listener time: ").append(lastNioSnd - firstLsnrInvoke).append("us\n");
             sb.append(ident).append("  Estimated wire time: ").append(latency - (lastNioSnd - firstNioRcv))
                 .append("us\n");
         }
@@ -301,7 +346,7 @@ public class EventsTrace implements Message, IgniteTraceAware {
 
                 EventsTrace rmtTrace = rmtTraces.get(i);
 
-                rmtTrace.toString(sb, rmtNodeId, ident + "  ", F.isEmpty(traceStamps) ? 0 : traceStamps[0]);
+                rmtTrace.toString(sb, rmtNodeId, ident + "  ", updBase);
             }
         }
 
