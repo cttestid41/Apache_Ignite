@@ -774,7 +774,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         Set<Integer> gprs = new HashSet<>();
 
         for (ExchangeActions.CacheActionData action : exchActions.cacheStartRequests()) {
-            Integer grpId = action.descriptor().groupId();
+            int grpId = action.descriptor().groupId();
 
             if (gprs.add(grpId)) {
                 if (crd)
@@ -1112,7 +1112,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         if (grpDesc.config().getCacheMode() == LOCAL)
             return;
 
-        Integer grpId = grpDesc.groupId();
+        int grpId = grpDesc.groupId();
 
         CacheGroupHolder grpHolder = grpHolders.get(grpId);
 
@@ -1511,7 +1511,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         for (int i = 0; i < fetchFuts.size(); i++) {
             GridDhtAssignmentFetchFuture fetchFut = fetchFuts.get(i);
 
-            Integer grpId = fetchFut.groupId();
+            int grpId = fetchFut.groupId();
 
             fetchAffinity(topVer,
                 fut.discoveryEvent(),
@@ -1622,7 +1622,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     return;
 
                 // Need initialize holders and affinity if this node became coordinator during this exchange.
-                final Integer grpId = desc.groupId();
+                int grpId = desc.groupId();
 
                 CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
