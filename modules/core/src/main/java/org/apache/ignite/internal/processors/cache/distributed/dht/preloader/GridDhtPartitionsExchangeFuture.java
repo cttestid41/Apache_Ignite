@@ -37,6 +37,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.CacheEvent;
@@ -484,6 +485,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void init(boolean newCrd) throws IgniteInterruptedCheckedException {
         if (isDone())
             return;
+
+        TestDebugLog.addMessage("start exchange " + initialVersion());
 
         assert !cctx.kernalContext().isDaemon();
 
@@ -1399,6 +1402,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (!done.compareAndSet(false, true))
             return false;
 
+        TestDebugLog.addMessage("done exchange " + initialVersion() + " " + res);
+
         log.info("Finish exchange future [startVer=" + initialVersion() +
             ", resVer=" + res +
             ", err=" + err + ']');
@@ -2235,13 +2240,20 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         GridDhtPartitionMap partMap = msg.partitions().get(grpId);
 
                         if (partMap == null || F.isEmpty(partMap.map())) {
+                            CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
+
+                            GridDhtPartitionTopology top = grp != null ? grp.topology() :
+                                cctx.exchange().clientTopology(grpId, this);
+
                             if (partMap == null) {
                                 partMap = new GridDhtPartitionMap(nodeId,
-                                    1L,
+                                    top.updateSequence() + 1,
                                     resTopVer,
                                     new GridPartitionStateMap(),
                                     false);
                             }
+                            else
+                                partMap.updateSequence(partMap.updateSeq + 1, partMap.topologyVersion());
 
                             AffinityAssignment aff = cctx.affinity().affinity(grpId).cachedAffinity(resTopVer);
 
@@ -2250,12 +2262,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                     partMap.put(p, GridDhtPartitionState.MOVING);
                             }
 
-                            CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
+                            boolean update = top.update(exchId, partMap);
 
-                            GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                                cctx.exchange().clientTopology(grpId, this);
-
-                            top.update(exchId, partMap);
+                            assert update;
                         }
                     }
                 }

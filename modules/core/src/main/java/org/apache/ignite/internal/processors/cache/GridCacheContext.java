@@ -39,6 +39,7 @@ import javax.cache.expiry.ExpiryPolicy;
 import javax.cache.processor.EntryProcessorResult;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.binary.BinaryField;
 import org.apache.ignite.binary.BinaryObjectBuilder;
 import org.apache.ignite.cache.CacheInterceptor;
@@ -2042,6 +2043,10 @@ public class GridCacheContext<K, V> implements Externalizable {
         assert affinityNode();
 
         GridDhtPartitionTopology top = topology();
+
+        TestDebugLog.addEntryMessage(part, top.rebalanceFinished(topVer), "hasPartition " + topVer);
+        TestDebugLog.addEntryMessage(part, top.partitionState(localNodeId(), part), "partState");
+        TestDebugLog.addEntryMessage(part, affNodes.contains(locNode), "affNode");
 
         return (top.rebalanceFinished(topVer) && (isReplicated() || affNodes.contains(locNode)))
             || (top.partitionState(localNodeId(), part) == OWNING);

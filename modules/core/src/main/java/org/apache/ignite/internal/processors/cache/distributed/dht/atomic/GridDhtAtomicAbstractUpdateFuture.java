@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.cache.processor.EntryProcessor;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
@@ -187,6 +188,9 @@ public abstract class GridDhtAtomicAbstractUpdateFuture extends GridCacheFutureA
 
         if (log.isDebugEnabled())
             log.debug("Mapping entry to DHT nodes [nodes=" + U.nodeIds(dhtNodes) + ", entry=" + entry + ']');
+
+        TestDebugLog.addEntryMessage(entry.key().value(null, false),
+            F.nodeIds(dhtNodes), "dht mapped " + updateReq.topologyVersion() + " " + updateReq.affinityMapping());
 
         CacheWriteSynchronizationMode syncMode = updateReq.writeSynchronizationMode();
 

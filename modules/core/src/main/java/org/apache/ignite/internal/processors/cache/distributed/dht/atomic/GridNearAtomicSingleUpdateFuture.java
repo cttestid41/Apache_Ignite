@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import javax.cache.expiry.ExpiryPolicy;
 import javax.cache.processor.EntryProcessor;
-import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
@@ -555,6 +555,9 @@ public class GridNearAtomicSingleUpdateFuture extends GridNearAtomicAbstractUpda
         if (F.isEmpty(nodes))
             throw new ClusterTopologyServerNotFoundException("Failed to map keys for cache (all partition nodes " +
                 "left the grid).");
+
+        TestDebugLog.addEntryMessage(cacheKey.value(null, false),
+            F.nodeIds(nodes), "near mapped " + topVer + " " + mappingKnown);
 
         ClusterNode primary = nodes.get(0);
 

@@ -32,6 +32,7 @@ import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cache.eviction.EvictableEntry;
 import org.apache.ignite.internal.pagemem.wal.StorageException;
 import org.apache.ignite.internal.pagemem.wal.record.DataEntry;
@@ -1631,6 +1632,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
     ) throws IgniteCheckedException, GridCacheEntryRemovedException, GridClosureException {
         assert cctx.atomic() && !detached();
 
+        TestDebugLog.addEntryMessage(key.value(null, false), primary, "innerUpdate");
+
         AtomicCacheUpdateClosure c;
 
         if (!primary && !isNear())
@@ -2523,6 +2526,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
     ) throws IgniteCheckedException, GridCacheEntryRemovedException {
         ensureFreeSpace();
 
+        TestDebugLog.addEntryMessage(key.value(null, false), val, "initialValue");
+
         synchronized (this) {
             checkObsolete();
 
@@ -3358,6 +3363,9 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         return false;
 
                     if (!hasReaders() && markObsolete0(obsoleteVer, false, null)) {
+                        if (evictOffheap)
+                            TestDebugLog.addEntryMessage(key.value(null, false), val, "evictInternal");
+
                         // Nullify value after swap.
                         value(null);
 

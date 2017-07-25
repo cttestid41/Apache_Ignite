@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cache.PartitionLossPolicy;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.events.DiscoveryEvent;
@@ -333,6 +334,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         if (localNode(p, aff)) {
                             GridDhtLocalPartition locPart = createPartition(p);
 
+                            TestDebugLog.addPartMessage(locPart.id(), "first", "owned");
+
                             boolean owned = locPart.own();
 
                             assert owned : "Failed to own partition for oldest node [grp=" + grp.cacheOrGroupName() +
@@ -581,6 +584,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                             // If there are no other owners, then become an owner.
                             if (F.isEmpty(owners)) {
+                                TestDebugLog.addPartMessage(locPart.id(), "no owners", "owned");
+
                                 boolean owned = locPart.own();
 
                                 assert owned : "Failed to own partition [grp=" + grp.cacheOrGroupName() + ", locPart=" +
@@ -949,10 +954,14 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                 }
 
+                TestDebugLog.addEntryMessage(p, nodes, "diff2");
+
                 return nodes;
             }
 
             Collection<UUID> diffIds = diffFromAffinity.get(p);
+
+            TestDebugLog.addEntryMessage(p, diffIds, "diff");
 
             if (!F.isEmpty(diffIds)) {
                 HashSet<UUID> affIds = affAssignment.getIds(p);
@@ -1632,6 +1641,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     GridDhtLocalPartition locPart = localPartition(part, topVer, false);
 
                     if (locPart != null) {
+                        TestDebugLog.addPartMessage(locPart.id(), "lost", "owned");
+
                         boolean marked = plc == PartitionLossPolicy.IGNORE ? locPart.own() : locPart.markLost();
 
                         if (marked)
