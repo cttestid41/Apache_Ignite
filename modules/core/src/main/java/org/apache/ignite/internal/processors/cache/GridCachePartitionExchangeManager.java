@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
@@ -44,7 +43,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteSystemProperties;
-import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.affinity.AffinityFunction;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.CacheConfiguration;
@@ -1791,7 +1789,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     final GridDhtPartitionsSingleMessage pendingMsg = fut.mergeJoinExchangeOnDone(curFut);
 
                     if (pendingMsg != null)
-                        curFut.waitAndReplayToNode(evt.eventNode(), pendingMsg);
+                        curFut.waitAndReplyToNode(evt.eventNode(), pendingMsg);
                 }
 
                 exchWorker.futQ.remove(fut);

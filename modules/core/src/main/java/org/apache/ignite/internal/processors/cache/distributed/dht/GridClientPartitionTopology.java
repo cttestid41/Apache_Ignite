@@ -128,7 +128,7 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         this.grpId = grpId;
         this.similarAffKey = similarAffKey;
 
-        topVer = exchFut.topologyVersion();
+        topVer = exchFut.initialVersion();
 
         discoCache = exchFut.discoCache();
 
@@ -194,7 +194,7 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         U.writeLock(lock);
 
         try {
-            AffinityTopologyVersion exchTopVer = exchFut.topologyVersion();
+            AffinityTopologyVersion exchTopVer = exchFut.initialVersion();
 
             assert exchTopVer.compareTo(topVer) > 0 : "Invalid topology version [topVer=" + topVer +
                 ", exchVer=" + exchTopVer + ']';

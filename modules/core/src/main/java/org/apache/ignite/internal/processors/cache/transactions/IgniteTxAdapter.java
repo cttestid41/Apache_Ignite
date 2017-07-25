@@ -474,7 +474,7 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter implement
                     return topVer;
             }
 
-            return cctx.exchange().readyAffinityVersion();
+            return cctx.exchange().topologyVersion();
         }
 
         return res;

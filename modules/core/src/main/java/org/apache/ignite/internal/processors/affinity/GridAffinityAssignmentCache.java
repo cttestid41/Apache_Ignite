@@ -472,6 +472,10 @@ public class GridAffinityAssignmentCache {
         return false;
     }
 
+    /**
+     * @param topVer Topology version.
+     * @return Assignment.
+     */
     public AffinityAssignment readyAffinity(AffinityTopologyVersion topVer) {
         AffinityAssignment cache = head.get();
 

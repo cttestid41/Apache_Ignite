@@ -289,6 +289,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             log.debug("Creating exchange future [localNode=" + cctx.localNodeId() + ", fut=" + this + ']');
     }
 
+    /**
+     * @return Shared cache context.
+     */
     GridCacheSharedContext sharedContext() {
         return cctx;
     }
@@ -324,6 +327,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         this.affChangeMsg = affChangeMsg;
     }
 
+    /**
+     * @return Initial exchange version.
+     */
     public AffinityTopologyVersion initialVersion() {
         return exchId.topologyVersion();
     }
@@ -472,6 +478,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * Starts activity.
      *
+     * @param newCrd {@code True} if node become coordinator on this exchange.
      * @throws IgniteInterruptedCheckedException If interrupted.
      */
     public void init(boolean newCrd) throws IgniteInterruptedCheckedException {
@@ -561,7 +568,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             onClientNodeEvent(crdNode);
 
                             exchange = ExchangeType.CLIENT;
-                        } else {
+                        }
+                        else {
                             onServerNodeEvent(crdNode);
 
                             exchange = ExchangeType.ALL_2;
@@ -591,44 +599,42 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             updateTopologies(crdNode);
 
-            if (exchange != null) {
-                switch (exchange) {
-                    case ALL: {
-                        distributedExchange();
+            switch (exchange) {
+                case ALL: {
+                    distributedExchange();
 
-                        break;
-                    }
-
-                    case ALL_2: {
-                        distributedExchange2();
-
-                        break;
-                    }
-
-                    case CLIENT: {
-                        if (!exchCtx.mergeExchanges())
-                            initTopologies();
-
-                        clientOnlyExchange();
-
-                        break;
-                    }
-
-                    case NONE: {
-                        initTopologies();
-
-                        onDone(topVer);
-
-                        break;
-                    }
-
-                    default:
-                        assert false;
+                    break;
                 }
 
-                if (cctx.localNode().isClient())
-                    tryToPerformLocalSnapshotOperation();
+                case ALL_2: {
+                    distributedExchange2();
+
+                    break;
+                }
+
+                case CLIENT: {
+                    if (!exchCtx.mergeExchanges())
+                        initTopologies();
+
+                    clientOnlyExchange();
+
+                    break;
+                }
+
+                case NONE: {
+                    initTopologies();
+
+                    onDone(topVer);
+
+                    break;
+                }
+
+                default:
+                    assert false;
             }
+
+            if (cctx.localNode().isClient())
+                tryToPerformLocalSnapshotOperation();
 
             exchLog.info("Finished exchange init [topVer=" + topVer + ", crd=" + crdNode + ']');
         }
@@ -924,7 +930,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @throws IgniteCheckedException If failed.
      */
     private void distributedExchange2() throws IgniteCheckedException {
-        if (crd.isLocal()) {
+        if (state == ExchangeLocalState.CRD) {
             if (remaining.isEmpty())
                 onAllReceived();
         }
@@ -1752,7 +1758,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         });
     }
 
-    public void waitAndReplayToNode(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
+    public void waitAndReplyToNode(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
             @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                 FinishState finishState0;
@@ -2403,9 +2409,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         ClusterNode node = cctx.node(nodeId);
 
         if (node != null) {
-            GridDhtPartitionsFullMessage fullMsg = finishState.msg;
-
-            fullMsg = fullMsg.copy();
+            GridDhtPartitionsFullMessage fullMsg = finishState.msg.copy();
+            fullMsg.exchangeId(msg.exchangeId());
 
             Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();
 
@@ -2433,6 +2438,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 U.error(log, "Failed to send partitions [node=" + node + ']', e);
             }
         }
+        else if (log.isDebugEnabled())
+            log.debug("Failed to send partitions, node failed: " + nodeId);
+
     }
 
     /**
@@ -2629,11 +2637,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                 return;
                             }
                             else {
+                                AffinityTopologyVersion resVer = msg.resultTopologyVersion() != null ? msg.resultTopologyVersion() : initialVersion();
+
                                 log.info("Received full message, will finish exchange [node=" + node.id() +
-                                    ", resVer=" + msg.resultTopologyVersion() + ']');
+                                    ", resVer=" + resVer + ']');
 
                                 finishState = new FinishState(crd.id(),
-                                    msg.resultTopologyVersion() != null ? msg.resultTopologyVersion() : initialVersion(),
+                                    resVer,
                                     msg);
 
                                 state = ExchangeLocalState.DONE;

@@ -303,7 +303,10 @@ public class CachePartitionStateTest extends GridCommonAbstractTest {
         nodeParts.addAll(assign.primaryPartitions(clusterNode.id()));
         nodeParts.addAll(assign.backupPartitions(clusterNode.id()));
 
-        log.info("Test state [node=" + clusterNode.id() + ", parts=" + nodeParts.size() + ", state=" + expState + ']');
+        log.info("Test state [node=" + clusterNode.id() +
+            ", cache=" + cacheName +
+            ", parts=" + nodeParts.size() +
+            ", state=" + expState + ']');
 
         if (grid(0).context().discovery().cacheAffinityNode(clusterNode, cacheName))
             assertFalse(nodeParts.isEmpty());
@@ -330,7 +333,10 @@ public class CachePartitionStateTest extends GridCommonAbstractTest {
                         if (partsMap != null) {
                             GridDhtPartitionState state = partsMap.get(p);
 
-                            assertTrue("Unexpected state: " + state, state == null || state == EVICTED);
+                            assertTrue("Unexpected state [checkNode=" + clusterNode.id() +
+                                    ", node=" + node.name() +
+                                    ", state=" + state + ']',
+                                state == null || state == EVICTED);
                         }
                     }
                 }
