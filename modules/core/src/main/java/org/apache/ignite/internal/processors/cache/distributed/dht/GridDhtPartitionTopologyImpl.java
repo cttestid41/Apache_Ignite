@@ -1464,7 +1464,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             AffinityTopologyVersion affVer = grp.affinity().lastVersion();
 
             if (affVer.compareTo(diffFromAffinityVer) >= 0) {
-                AffinityAssignment affAssignment = grp.affinity().cachedAffinity(affVer);
+                AffinityAssignment affAssignment = grp.affinity().readyAffinity(affVer);
 
                 // Add new mappings.
                 for (Map.Entry<Integer, GridDhtPartitionState> e : parts.entrySet()) {
