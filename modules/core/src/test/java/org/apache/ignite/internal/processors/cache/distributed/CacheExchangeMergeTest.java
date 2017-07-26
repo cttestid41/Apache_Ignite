@@ -167,9 +167,6 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
             final AtomicInteger idx = new AtomicInteger(1);
 
-            IgniteInternalFuture fut = startGrids(ignite(0), 1, 2);
-
-/*
                 IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
                 @Override public Void call() throws Exception {
                     if (withClients)
@@ -182,8 +179,8 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                     return null;
                 }
-            }, 2, "start-node");
-*/
+            }, 10, "start-node");
+
             fut.get();
 
             checkCaches();
