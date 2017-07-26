@@ -28,7 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
@@ -168,7 +167,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
             final AtomicInteger idx = new AtomicInteger(1);
 
-            IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+            IgniteInternalFuture fut = startGrids(ignite(0), 1, 2);
+
+/*
+                IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
                 @Override public Void call() throws Exception {
                     if (withClients)
                         client.set(ThreadLocalRandom.current().nextBoolean());
@@ -181,15 +183,13 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                     return null;
                 }
             }, 2, "start-node");
-
+*/
             fut.get();
 
             checkCaches();
 
             // TODO: stop by one, check caches - in all tests.
             stopAllGrids();
-
-            TestDebugLog.clear();
         }
     }
 
@@ -751,17 +751,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                 Object val = cache.get(key);
 
-                if (!F.eq(i, val)) {
-                    TestDebugLog.addMessage(err + " val=" + val);
-
-                    TestDebugLog.printMessages(true, node.affinity(cacheName).partition(key));
-
-                    System.exit(100);
-                }
-
                 assertEquals(err, i, val);
-
-                TestDebugLog.clearEntries();
             }
         }
     }

@@ -1820,10 +1820,10 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                         assert evts.topologyVersion().equals(aff.topologyVersion());
 
-                        Map<UUID, GridDhtPartitionMap> map = affinityFullMap(cache.topology(fut), aff);
+                        Map<UUID, GridDhtPartitionMap> map = affinityFullMap(aff);
 
                         for (GridDhtPartitionMap map0 : map.values())
-                            cache.topology(fut).update(fut.exchangeId(), map0);
+                            cache.topology(fut).update(fut.exchangeId(), map0, true);
                     }
                 }
             });
@@ -1832,7 +1832,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
     }
 
-    private Map<UUID, GridDhtPartitionMap> affinityFullMap(GridDhtPartitionTopology top, AffinityAssignment aff) {
+    private Map<UUID, GridDhtPartitionMap> affinityFullMap(AffinityAssignment aff) {
         Map<UUID, GridDhtPartitionMap> map = new HashMap<>();
 
         for (int p = 0; p < aff.assignment().size(); p++) {
@@ -1843,7 +1843,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                 if (partMap == null) {
                     partMap = new GridDhtPartitionMap(nodeId,
-                        top.updateSequence() + 1,
+                        1L,
                         aff.topologyVersion(),
                         new GridPartitionStateMap(),
                         false);

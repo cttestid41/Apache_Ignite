@@ -28,9 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cluster.ClusterNode;
-import org.apache.ignite.events.DiscoveryEvent;
 import org.apache.ignite.internal.IgniteFutureTimeoutCheckedException;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.NodeStoppingException;
@@ -291,8 +289,6 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
                     Collection<ClusterNode> picked = pickedOwners(p, topVer);
 
                     if (picked.isEmpty()) {
-                        TestDebugLog.addPartMessage(part.id(), "no picked", "owned");
-
                         top.own(part);
 
                         if (grp.eventRecordable(EVT_CACHE_REBALANCE_PART_DATA_LOST)) {

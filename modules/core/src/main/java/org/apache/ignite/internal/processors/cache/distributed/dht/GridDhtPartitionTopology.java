@@ -260,7 +260,8 @@ public interface GridDhtPartitionTopology {
      * @return {@code True} if local state was changed.
      */
     public boolean update(@Nullable GridDhtPartitionExchangeId exchId,
-        GridDhtPartitionMap parts);
+        GridDhtPartitionMap parts,
+        boolean force);
 
     /**
      * @param cntrMap Counters map.

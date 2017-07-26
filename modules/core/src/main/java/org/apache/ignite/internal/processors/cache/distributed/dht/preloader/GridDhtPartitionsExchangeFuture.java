@@ -37,7 +37,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
-import org.apache.ignite.TestDebugLog;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.CacheEvent;
@@ -485,8 +484,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public void init(boolean newCrd) throws IgniteInterruptedCheckedException {
         if (isDone())
             return;
-
-        TestDebugLog.addMessage("start exchange " + initialVersion());
 
         assert !cctx.kernalContext().isDaemon();
 
@@ -1402,8 +1399,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (!done.compareAndSet(false, true))
             return false;
 
-        TestDebugLog.addMessage("done exchange " + initialVersion() + " " + res);
-
         log.info("Finish exchange future [startVer=" + initialVersion() +
             ", resVer=" + res +
             ", err=" + err + ']');
@@ -2190,6 +2185,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                         continue;
 
+                    if (resTopVer.equals(new AffinityTopologyVersion(3, 0)) && "c1".equals(grp.cacheOrGroupName()))
+                        System.out.println();
+
                     grp.topology().beforeExchange(this, true);
                 }
 
@@ -2247,13 +2245,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                             if (partMap == null) {
                                 partMap = new GridDhtPartitionMap(nodeId,
-                                    top.updateSequence() + 1,
+                                    1L,
                                     resTopVer,
                                     new GridPartitionStateMap(),
                                     false);
                             }
-                            else
-                                partMap.updateSequence(partMap.updateSeq + 1, partMap.topologyVersion());
 
                             AffinityAssignment aff = cctx.affinity().affinity(grpId).cachedAffinity(resTopVer);
 
@@ -2262,9 +2258,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                     partMap.put(p, GridDhtPartitionState.MOVING);
                             }
 
-                            boolean update = top.update(exchId, partMap);
-
-                            assert update;
+                            top.update(exchId, partMap, true);
                         }
                     }
                 }
@@ -2691,6 +2685,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
+            if (cctx.localNode().order() == 3L)
+                System.out.println();
             updatePartitionFullMap(msg);
 
             IgniteCheckedException err = null;
@@ -2762,7 +2758,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             GridDhtPartitionTopology top = grp != null ? grp.topology() :
                 cctx.exchange().clientTopology(grpId, this);
 
-            top.update(exchId, entry.getValue());
+            top.update(exchId, entry.getValue(), false);
         }
     }
 
