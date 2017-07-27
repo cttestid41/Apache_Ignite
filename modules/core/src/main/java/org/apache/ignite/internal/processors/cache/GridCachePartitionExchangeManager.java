@@ -743,19 +743,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     }
 
     /**
-     * Gets topology version of last partition exchange, it is possible that last partition exchange
-     * is not completed yet.
-     *
-     * @return Topology version.
-     */
-    public AffinityTopologyVersion topologyVersion() {
-        GridDhtPartitionsExchangeFuture lastInitializedFut0 = lastInitializedFut;
-
-        return lastInitializedFut0 != null
-            ? lastInitializedFut0.exchangeId().topologyVersion() : AffinityTopologyVersion.NONE;
-    }
-
-    /**
      * @return Topology version of latest completed partition exchange.
      */
     public AffinityTopologyVersion readyAffinityVersion() {
