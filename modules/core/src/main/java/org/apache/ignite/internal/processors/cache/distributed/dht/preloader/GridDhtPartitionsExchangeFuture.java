@@ -930,6 +930,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @throws IgniteCheckedException If failed.
      */
     private void distributedExchange2() throws IgniteCheckedException {
+        waitPartitionRelease();
+
         if (state == ExchangeLocalState.CRD) {
             if (remaining.isEmpty())
                 onAllReceived();
