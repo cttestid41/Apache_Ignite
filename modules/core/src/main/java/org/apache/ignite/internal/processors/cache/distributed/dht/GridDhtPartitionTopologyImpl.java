@@ -446,7 +446,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         if ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()))
                             removeNode(evt.eventNode().id());
                     }
-    
                     ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
 
                     if (log.isDebugEnabled()) {
@@ -1104,9 +1103,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     @Override public boolean update(
         @Nullable AffinityTopologyVersion exchangeVer,
         GridDhtPartitionFullMap partMap,
-        @Nullable Map<Integer, T2<Long, Long>> cntrMap,
-        Set<Integer> partsToReload
-    ) {
+        @Nullable Map<Integer, T2<Long, Long>> incomeCntrMap,
+        Set<Integer> partsToReload,
+        @Nullable AffinityTopologyVersion msgTopVer) {
         if (log.isDebugEnabled())
             log.debug("Updating full partition map [exchVer=" + exchangeVer + ", parts=" + fullMapString() + ']');
 
@@ -1127,12 +1126,12 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                 topVer = exchangeVer;
             }
 
-            if (cntrMap != null) {
+            if (incomeCntrMap != null) {
                 // update local map partition counters
-                for (Map.Entry<Integer, T2<Long, Long>> e : cntrMap.entrySet()) {
-                    T2<Long, Long> cntr = this.cntrMap.get(e.getKey());
+                for (Map.Entry<Integer, T2<Long, Long>> e : incomeCntrMap.entrySet()) {
+                    T2<Long, Long> existCntr = this.cntrMap.get(e.getKey());
 
-                    if (cntr == null || cntr.get2() < e.getValue().get2())
+                    if (existCntr == null || existCntr.get2() < e.getValue().get2())
                         this.cntrMap.put(e.getKey(), e.getValue());
                 }
 
@@ -1143,7 +1142,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     if (part == null)
                         continue;
 
-                    T2<Long, Long> cntr = cntrMap.get(part.id());
+                    T2<Long, Long> cntr = incomeCntrMap.get(part.id());
 
                     if (cntr != null)
                         part.updateCounter(cntr.get2());
@@ -1154,6 +1153,14 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                 if (log.isDebugEnabled())
                     log.debug("Stale exchange id for full partition map update (will ignore) [lastExch=" +
                         lastExchangeVer + ", exch=" + exchangeVer + ']');
+
+                return false;
+            }
+
+            if (msgTopVer != null && lastExchangeVer != null && lastExchangeVer.compareTo(msgTopVer) > 0) {
+                if (log.isDebugEnabled())
+                    log.debug("Stale version for full partition map update message (will ignore) [lastExch=" +
+                        lastExchangeVer + ", topVersion=" + msgTopVer + ']');
 
                 return false;
             }
@@ -1258,8 +1265,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                         assert locPart != null;
 
-                        if (cntrMap != null) {
-                            T2<Long, Long> cntr = cntrMap.get(p);
+                        if (incomeCntrMap != null) {
+                            T2<Long, Long> cntr = incomeCntrMap.get(p);
 
                             if (cntr != null && cntr.get2() > locPart.updateCounter())
                                 locPart.updateCounter(cntr.get2());
@@ -1285,8 +1292,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                             changed = true;
                         }
 
-                        if (cntrMap != null) {
-                            T2<Long, Long> cntr = cntrMap.get(p);
+                        if (incomeCntrMap != null) {
+                            T2<Long, Long> cntr = incomeCntrMap.get(p);
 
                             if (cntr != null && cntr.get2() > locPart.updateCounter())
                                 locPart.updateCounter(cntr.get2());
