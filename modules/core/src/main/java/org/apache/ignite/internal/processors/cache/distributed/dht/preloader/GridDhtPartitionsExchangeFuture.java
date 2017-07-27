@@ -563,8 +563,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         initCachesOnLocalJoin();
                 }
 
-                // TODO IGNITE-5578: caches from joining nodes for merged exchanges.
-
                 if (exchCtx.mergeExchanges()) {
                     if (localJoinExchange()) {
                         if (cctx.kernalContext().clientNode()) {
@@ -575,14 +573,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         else {
                             onServerNodeEvent(crdNode);
 
-                            exchange = ExchangeType.ALL_2;
+                            exchange = ExchangeType.ALL;
                         }
                     }
                     else {
                         if (CU.clientNode(discoEvt.eventNode()))
                             exchange = onClientNodeEvent(crdNode);
                         else
-                            exchange = cctx.kernalContext().clientNode() ? ExchangeType.CLIENT : ExchangeType.ALL_2;
+                            exchange = cctx.kernalContext().clientNode() ? ExchangeType.CLIENT : ExchangeType.ALL;
                     }
                 }
                 else {
@@ -605,12 +603,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             switch (exchange) {
                 case ALL: {
                     distributedExchange();
-
-                    break;
-                }
-
-                case ALL_2: {
-                    distributedExchange2();
 
                     break;
                 }
@@ -933,22 +925,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * @throws IgniteCheckedException If failed.
      */
-    private void distributedExchange2() throws IgniteCheckedException {
-        waitPartitionRelease();
-
-        if (state == ExchangeLocalState.CRD) {
-            if (remaining.isEmpty())
-                onAllReceived();
-        }
-        else
-            sendPartitions(crd);
-
-        initDone();
-    }
-
-    /**
-     * @throws IgniteCheckedException If failed.
-     */
     private void distributedExchange() throws IgniteCheckedException {
         assert crd != null;
 
@@ -980,13 +956,15 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             }
         }
 
-        for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
-            if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
-                continue;
+        if (!exchCtx.mergeExchanges()) {
+            for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
+                if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
+                    continue;
 
-            // It is possible affinity is not initialized yet if node joins to cluster.
-            if (grp.affinity().lastVersion().topologyVersion() > 0)
-                grp.topology().beforeExchange(this, !centralizedAff);
+                // It is possible affinity is not initialized yet if node joins to cluster.
+                if (grp.affinity().lastVersion().topologyVersion() > 0)
+                    grp.topology().beforeExchange(this, !centralizedAff);
+            }
         }
 
         cctx.database().beforeExchange(this);
@@ -2276,10 +2254,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            // TODO IGNITE-5578: process all merged events.
-            if (discoEvt.type() == EVT_NODE_JOINED)
-                assignPartitionsStates();
-            else if (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
+            if (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
                 assert discoEvt instanceof DiscoveryCustomEvent;
 
                 if (activateCluster())
@@ -2294,8 +2269,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     }
                 }
             }
-            else if (discoEvt.type() == EVT_NODE_LEFT || discoEvt.type() == EVT_NODE_FAILED)
-                detectLostPartitions();
+            else {
+                if (exchCtx.events().serverJoin())
+                    assignPartitionsStates();
+
+                if (exchCtx.events().serverLeft())
+                    detectLostPartitions();
+            }
 
             updateLastVersion(cctx.versions().last());
 
@@ -2417,6 +2397,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * @param finishState State.
      * @param msg Request.
      * @param nodeId Node ID.
      */
@@ -3216,9 +3197,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         /** */
         ALL,
-
-        /** */
-        ALL_2,
 
         /** */
         NONE

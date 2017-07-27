@@ -59,7 +59,9 @@ import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
+import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
+import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 
 /**
@@ -76,7 +78,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     private boolean testSpi;
 
     /** */
-    private static String[] cacheNames = {"c1"/*, "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"*/};
+    private static String[] cacheNames = {"c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"};
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
@@ -96,16 +98,16 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }
 
         cfg.setCacheConfiguration(
-            cacheConfiguration("c1", ATOMIC, PARTITIONED, 0)
-//            cacheConfiguration("c2", ATOMIC, PARTITIONED, 1),
-//            cacheConfiguration("c3", ATOMIC, PARTITIONED, 2),
-//            cacheConfiguration("c4", ATOMIC, PARTITIONED, 10),
-//            cacheConfiguration("c5", ATOMIC, REPLICATED, 0),
-//            cacheConfiguration("c6", TRANSACTIONAL, PARTITIONED, 0),
-//            cacheConfiguration("c7", TRANSACTIONAL, PARTITIONED, 1),
-//            cacheConfiguration("c8", TRANSACTIONAL, PARTITIONED, 2),
-//            cacheConfiguration("c9", TRANSACTIONAL, PARTITIONED, 10),
-//            cacheConfiguration("c10", TRANSACTIONAL, REPLICATED, 0)
+            cacheConfiguration("c1", ATOMIC, PARTITIONED, 0),
+            cacheConfiguration("c2", ATOMIC, PARTITIONED, 1),
+            cacheConfiguration("c3", ATOMIC, PARTITIONED, 2),
+            cacheConfiguration("c4", ATOMIC, PARTITIONED, 10),
+            cacheConfiguration("c5", ATOMIC, REPLICATED, 0),
+            cacheConfiguration("c6", TRANSACTIONAL, PARTITIONED, 0),
+            cacheConfiguration("c7", TRANSACTIONAL, PARTITIONED, 1),
+            cacheConfiguration("c8", TRANSACTIONAL, PARTITIONED, 2),
+            cacheConfiguration("c9", TRANSACTIONAL, PARTITIONED, 10),
+            cacheConfiguration("c10", TRANSACTIONAL, REPLICATED, 0)
         );
 
         return cfg;
@@ -121,10 +123,15 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @param name Cache name.
      * @param atomicityMode Cache atomicity mode.
+     * @param cacheMode Cache mode.
      * @param backups Number of backups.
      * @return Cache configuration.
      */
-    private CacheConfiguration cacheConfiguration(String name, CacheAtomicityMode atomicityMode, CacheMode cacheMode, int backups) {
+    private CacheConfiguration cacheConfiguration(String name,
+        CacheAtomicityMode atomicityMode,
+        CacheMode cacheMode,
+        int backups)
+    {
         CacheConfiguration ccfg = new CacheConfiguration(name);
 
         ccfg.setAtomicityMode(atomicityMode);

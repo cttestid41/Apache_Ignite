@@ -125,6 +125,10 @@ public class IgniteThread extends Thread {
         return stripe;
     }
 
+    public boolean hasStripeOrPolicy() {
+        return stripe >= 0 || plc != GridIoPolicy.UNDEFINED;
+    }
+
     /**
      * Gets name of the Ignite instance this thread belongs to.
      *

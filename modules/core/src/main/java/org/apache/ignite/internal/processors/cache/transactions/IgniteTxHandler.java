@@ -25,6 +25,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
+import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -42,6 +43,7 @@ import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTx
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtInvalidPartitionException;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtLocalPartition;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionTopology;
+import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTopologyFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxFinishFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxFinishRequest;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxFinishResponse;
@@ -74,6 +76,7 @@ import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFutureCancelledException;
+import org.apache.ignite.thread.IgniteThread;
 import org.apache.ignite.transactions.TransactionState;
 import org.jetbrains.annotations.Nullable;
 
@@ -109,10 +112,10 @@ public class IgniteTxHandler {
     private GridCacheSharedContext<?, ?> ctx;
 
     /**
-     * @param nearNodeId Node ID.
+     * @param nearNodeId Sender node ID.
      * @param req Request.
      */
-    private void processNearTxPrepareRequest(final UUID nearNodeId, GridNearTxPrepareRequest req) {
+    private void processNearTxPrepareRequest(UUID nearNodeId, GridNearTxPrepareRequest req) {
         if (txPrepareMsgLog.isDebugEnabled()) {
             txPrepareMsgLog.debug("Received near prepare request [txId=" + req.version() +
                 ", node=" + nearNodeId + ']');
@@ -130,7 +133,29 @@ public class IgniteTxHandler {
             return;
         }
 
-        IgniteInternalFuture<GridNearTxPrepareResponse> fut = prepareNearTx(nearNode, req);
+        processNearTxPrepareRequest0(nearNode, req);
+    }
+
+    /**
+     * @param nearNode Sender node.
+     * @param req Request.
+     */
+    private void processNearTxPrepareRequest0(ClusterNode nearNode, GridNearTxPrepareRequest req) {
+        IgniteInternalFuture<GridNearTxPrepareResponse> fut;
+
+        if (req.firstClientRequest()) {
+            for (;;) {
+                if (waitForExchangeFuture(nearNode, req))
+                    return;
+
+                fut = prepareNearTx(nearNode, req);
+
+                if (fut != null)
+                    break;
+            }
+        }
+        else
+            fut = prepareNearTx(nearNode, req);
 
         assert req.txState() != null || fut == null || fut.error() != null ||
             (ctx.tm().tx(req.version()) == null && ctx.tm().nearTx(req.version()) == null);
@@ -303,9 +328,9 @@ public class IgniteTxHandler {
     /**
      * @param nearNode Node that initiated transaction.
      * @param req Near prepare request.
-     * @return Prepare future.
+     * @return Prepare future or {@code null} if need retry operation.
      */
-    private IgniteInternalFuture<GridNearTxPrepareResponse> prepareNearTx(
+    @Nullable private IgniteInternalFuture<GridNearTxPrepareResponse> prepareNearTx(
         final ClusterNode nearNode,
         final GridNearTxPrepareRequest req
     ) {
@@ -348,6 +373,11 @@ public class IgniteTxHandler {
                 top = firstEntry.context().topology();
 
                 top.readLock();
+
+                GridDhtTopologyFuture topFut = top.topologyVersionFuture();
+
+                if (!topFut.isDone())
+                    return null;
             }
 
             try {
@@ -496,6 +526,48 @@ public class IgniteTxHandler {
         }
         else
             return new GridFinishedFuture<>((GridNearTxPrepareResponse)null);
+    }
+
+    /**
+     * @param node Sender node.
+     * @param req Request.
+     * @return {@code True} if update will be retried from future listener.
+     */
+    private boolean waitForExchangeFuture(final ClusterNode node, final GridNearTxPrepareRequest req) {
+        assert req.firstClientRequest() : req;
+
+        GridDhtTopologyFuture topFut = ctx.exchange().lastTopologyFuture();
+
+        if (!topFut.isDone()) {
+            Thread curThread = Thread.currentThread();
+
+            if (curThread instanceof IgniteThread) {
+                final IgniteThread thread = (IgniteThread)curThread;
+
+                if (thread.hasStripeOrPolicy()) {
+                    topFut.listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
+                        @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
+                            ctx.kernalContext().closure().runLocalWithThreadPolicy(thread, new Runnable() {
+                                @Override public void run() {
+                                    processNearTxPrepareRequest0(node, req);
+                                }
+                            });
+                        }
+                    });
+
+                    return true;
+                }
+            }
+
+            try {
+                topFut.get();
+            }
+            catch (IgniteCheckedException e) {
+                U.error(log, "Topology future failed: " + e, e);
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -1763,8 +1763,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
         assert !req.returnValue() || (req.operation() == TRANSFORM || req.size() == 1);
 
-        GridDhtTopologyFuture topFut = null;
-
         GridDhtAtomicAbstractUpdateFuture dhtFut = null;
 
         IgniteCacheExpiryPolicy expiry = null;
@@ -1794,24 +1792,23 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         return true;
                     }
 
-                    topFut = top.topologyVersionFuture();
+                    GridDhtTopologyFuture topFut = top.topologyVersionFuture();
 
-                    if (topFut.isDone()) {
-                        topFut = null;
+                    if (!topFut.isDone())
+                        return false; // Will wait at the beginning of next updateAllAsyncInternal0 call.
 
-                        // Do not check topology version if topology was locked on near node by
-                        // external transaction or explicit lock.
-                        if (req.topologyLocked() || !needRemap(req.topologyVersion(), top.topologyVersion())) {
-                            DhtAtomicUpdateResult updRes = update(node, locked, req, res);
+                    // Do not check topology version if topology was locked on near node by
+                    // external transaction or explicit lock.
+                    if (req.topologyLocked() || !needRemap(req.topologyVersion(), top.topologyVersion())) {
+                        DhtAtomicUpdateResult updRes = update(node, locked, req, res);
 
-                            dhtFut = updRes.dhtFuture();
-                            deleted = updRes.deleted();
-                            expiry = updRes.expiryPolicy();
-                        }
-                        else
-                            // Should remap all keys.
-                            res.remapTopologyVersion(top.topologyVersion());
+                        dhtFut = updRes.dhtFuture();
+                        deleted = updRes.deleted();
+                        expiry = updRes.expiryPolicy();
                     }
+                    else
+                        // Should remap all keys.
+                        res.remapTopologyVersion(top.topologyVersion());
                 }
                 finally {
                     top.readUnlock();
@@ -1865,26 +1862,22 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             ctx.shared().database().checkpointReadUnlock();
         }
 
-        if (topFut == null) {
-            if (res.remapTopologyVersion() != null) {
-                assert dhtFut == null;
+        if (res.remapTopologyVersion() != null) {
+            assert dhtFut == null;
 
-                completionCb.apply(req, res);
-            }
-            else {
-                if (dhtFut != null)
-                    dhtFut.map(node, res.returnValue(), res, completionCb);
-            }
-
-            if (req.writeSynchronizationMode() != FULL_ASYNC)
-                req.cleanup(!node.isLocal());
-
-            sendTtlUpdateRequest(expiry);
-
-            return true;
+            completionCb.apply(req, res);
         }
-        else
-            return waitForTopologyFuture(node, req, completionCb);
+        else {
+            if (dhtFut != null)
+                dhtFut.map(node, res.returnValue(), res, completionCb);
+        }
+
+        if (req.writeSynchronizationMode() != FULL_ASYNC)
+            req.cleanup(!node.isLocal());
+
+        sendTtlUpdateRequest(expiry);
+
+        return true;
     }
 
     /**
@@ -1902,12 +1895,12 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             Thread curThread = Thread.currentThread();
 
             if (curThread instanceof IgniteThread) {
-                IgniteThread thread = (IgniteThread)curThread;
+                final IgniteThread thread = (IgniteThread)curThread;
 
-                if (thread.policy() == GridIoPolicy.SYSTEM_POOL) {
+                if (thread.hasStripeOrPolicy()) {
                     topFut.listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
                         @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
-                            ctx.closures().runLocalSafe(new Runnable() {
+                            ctx.closures().runLocalWithThreadPolicy(thread, new Runnable() {
                                 @Override public void run() {
                                     updateAllAsyncInternal0(node, req, completionCb);
                                 }
@@ -3307,7 +3300,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     }
                 }
                 catch (NodeStoppingException e){
-                    U.error(log, "Failed to update key on backup (local node is stopping):" + key, e);
+                    U.warn(log, "Failed to update key on backup (local node is stopping): " + key);
 
                     return;
                 }

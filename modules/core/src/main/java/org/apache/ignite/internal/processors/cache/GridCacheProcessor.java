@@ -1759,6 +1759,10 @@ public class GridCacheProcessor extends GridProcessorAdapter {
         }
     }
 
+    public boolean receivedCachesFromNodeJoin(ClusterNode node) {
+        return !cachesInfo.cachesReceivedFromJoin(node.id()).isEmpty();
+    }
+
     /**
      * Starts statically configured caches received from remote nodes during exchange.
      *
