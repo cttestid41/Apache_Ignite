@@ -846,7 +846,7 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
 
                     top = topology();
 
-                    topology().readLock();
+                    top.readLock();
                 }
 
                 try {

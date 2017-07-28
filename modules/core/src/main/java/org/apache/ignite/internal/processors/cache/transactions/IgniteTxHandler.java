@@ -25,7 +25,6 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
-import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
@@ -376,8 +375,11 @@ public class IgniteTxHandler {
 
                 GridDhtTopologyFuture topFut = top.topologyVersionFuture();
 
-                if (!topFut.isDone())
+                if (!topFut.isDone()) {
+                    top.readUnlock();
+
                     return null;
+                }
             }
 
             try {
@@ -549,7 +551,12 @@ public class IgniteTxHandler {
                         @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                             ctx.kernalContext().closure().runLocalWithThreadPolicy(thread, new Runnable() {
                                 @Override public void run() {
-                                    processNearTxPrepareRequest0(node, req);
+                                    try {
+                                        processNearTxPrepareRequest0(node, req);
+                                    }
+                                    finally {
+                                        ctx.io().onMessageProcessed(req);
+                                    }
                                 }
                             });
                         }

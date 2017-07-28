@@ -1902,7 +1902,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                         @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                             ctx.closures().runLocalWithThreadPolicy(thread, new Runnable() {
                                 @Override public void run() {
-                                    updateAllAsyncInternal0(node, req, completionCb);
+                                    updateAllAsyncInternal(node, req, completionCb);
                                 }
                             });
                         }

@@ -793,7 +793,7 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
             GridDhtPartitionMap cur = node2part.get(parts.nodeId());
 
             if (force) {
-                if (cur != null)
+                if (cur != null && cur.topologyVersion().initialized())
                     parts.updateSequence(cur.updateSequence(), cur.topologyVersion());
             }
             else if (isStaleUpdate(cur, parts)) {

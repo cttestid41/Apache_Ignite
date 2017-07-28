@@ -1498,7 +1498,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             GridDhtPartitionMap cur = node2part.get(parts.nodeId());
 
             if (force) {
-                if (cur != null)
+                if (cur != null && cur.topologyVersion().initialized())
                     parts.updateSequence(cur.updateSequence(), cur.topologyVersion());
             }
             else  if (isStaleUpdate(cur, parts)) {
@@ -1600,7 +1600,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         lock.writeLock().lock();
 
         try {
-            assert assignment.topologyVersion().equals(((GridDhtPartitionsExchangeFuture)topReadyFut).context().events().topologyVersion());
+            assert !(topReadyFut instanceof GridDhtPartitionsExchangeFuture) ||
+                assignment.topologyVersion().equals(((GridDhtPartitionsExchangeFuture)topReadyFut).context().events().topologyVersion());
 
             readyTopVer = lastTopChangeVer = assignment.topologyVersion();
 

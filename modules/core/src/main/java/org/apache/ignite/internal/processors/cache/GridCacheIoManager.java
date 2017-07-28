@@ -1051,27 +1051,34 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
                 throw e;
         }
         finally {
-            // Reset thread local context.
-            cctx.tm().resetContext();
+            onMessageProcessed(msg);
+        }
+    }
 
-            GridCacheMvccManager mvcc = cctx.mvcc();
+    /**
+     * @param msg Message.
+     */
+    public void onMessageProcessed(GridCacheMessage msg) {
+        // Reset thread local context.
+        cctx.tm().resetContext();
 
-            if (mvcc != null)
-                mvcc.contextReset();
+        GridCacheMvccManager mvcc = cctx.mvcc();
 
-            // Unwind eviction notifications.
-            if (msg instanceof IgniteTxStateAware) {
-                IgniteTxState txState = ((IgniteTxStateAware)msg).txState();
+        if (mvcc != null)
+            mvcc.contextReset();
 
-                if (txState != null)
-                    txState.unwindEvicts(cctx);
-            }
-            else if (msg instanceof GridCacheIdMessage) {
-                GridCacheContext ctx = cctx.cacheContext(((GridCacheIdMessage)msg).cacheId());
+        // Unwind eviction notifications.
+        if (msg instanceof IgniteTxStateAware) {
+            IgniteTxState txState = ((IgniteTxStateAware)msg).txState();
 
-                if (ctx != null)
-                    CU.unwindEvicts(ctx);
-            }
+            if (txState != null)
+                txState.unwindEvicts(cctx);
+        }
+        else if (msg instanceof GridCacheIdMessage) {
+            GridCacheContext ctx = cctx.cacheContext(((GridCacheIdMessage)msg).cacheId());
+
+            if (ctx != null)
+                CU.unwindEvicts(ctx);
         }
     }
 

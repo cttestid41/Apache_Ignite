@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
@@ -32,6 +33,9 @@ import static org.apache.ignite.internal.processors.cache.GridCachePartitionExch
  */
 public class ExchangeContext {
     /** */
+    public static final String IGNITE_EXCHANGE_COMPATIBILITY_MODE = "IGNITE_EXCHANGE_COMPATIBILITY_MODE";
+
+    /** */
     private Set<Integer> requestGrpsAffOnJoin;
 
     /** */
@@ -43,22 +47,35 @@ public class ExchangeContext {
     /** */
     private final ExchangeDiscoveryEvents evts;
 
+    /** */
+    private final boolean compatibilityNode = IgniteSystemProperties.getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_MODE, false);
+
     /**
      * @param fut Exchange future.
      */
     public ExchangeContext(GridDhtPartitionsExchangeFuture fut) {
-        int protocolVer = exchangeProtocolVersion(
-            fut.discoCache().minimumNodeVersion());
+        int protocolVer = exchangeProtocolVersion(fut.discoCache().minimumNodeVersion());
 
-        fetchAffOnJoin = protocolVer == 1;
+        if (compatibilityNode) {
+            fetchAffOnJoin = true;
 
-        merge = protocolVer > 1 && fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
+            merge = false;
+        }
+        else {
+            fetchAffOnJoin = protocolVer == 1;
+
+            merge = protocolVer > 1 && fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
+        }
 
         evts = new ExchangeDiscoveryEvents(fut);
     }
 
+    /**
+     * @param node Node.
+     * @return {@code True} if node supports exchange merge protocol.
+     */
     boolean supportsMergeExchanges(ClusterNode node) {
-        return exchangeProtocolVersion(node.version()) > 1;
+        return !compatibilityNode && exchangeProtocolVersion(node.version()) > 1;
     }
 
     /**

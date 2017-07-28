@@ -2178,9 +2178,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                         continue;
 
-                    if (resTopVer.equals(new AffinityTopologyVersion(3, 0)) && "c1".equals(grp.cacheOrGroupName()))
-                        System.out.println();
-
                     grp.topology().beforeExchange(this, true);
                 }
 
@@ -2973,7 +2970,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                     ", prev=" + node.id() + ']');
 
                                 assert newCrdFut != null;
-
 
                                 newCrdFut.init(GridDhtPartitionsExchangeFuture.this);
 
