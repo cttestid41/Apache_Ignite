@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -15,31 +15,16 @@
  * limitations under the License.
  */
 
-namespace Apache.Ignite.Core.Impl.Common
-{
-    /// <summary>
-    /// Platform listenable.
-    /// </summary>
-    internal class Listenable : PlatformTargetAdapter
-    {
-        /** */
-        private const int OpCancel = 1;
+package org.apache.ignite.internal.processors.cache;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Listenable"/> class.
-        /// </summary>
-        /// <param name="target">Target.</param>
-        public Listenable(IPlatformTargetInternal target) : base(target)
-        {
-            // No-op.
-        }
+import org.apache.ignite.events.EventType;
 
-        /// <summary>
-        /// Cancels the listenable.
-        /// </summary>
-        public void Cancel()
-        {
-            DoOutInOp(OpCancel);
-        }
+/**
+ *
+ */
+public class IgniteCacheBinaryObjectsScanWithEventsSelfTest extends IgniteCacheBinaryObjectsScanSelfTest {
+    /** {@inheritDoc} */
+    @Override protected int[] getIncludeEventTypes() {
+        return EventType.EVTS_ALL;
     }
 }

@@ -563,6 +563,15 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         initCachesOnLocalJoin();
                 }
 
+                if (newCrd) {
+                    IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(this, false);
+
+                    if (fut != null)
+                        fut.get();
+
+                    cctx.exchange().coordinatorInitialized();
+                }
+
                 if (exchCtx.mergeExchanges()) {
                     if (localJoinExchange()) {
                         if (cctx.kernalContext().clientNode()) {
@@ -587,15 +596,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     exchange = CU.clientNode(discoEvt.eventNode()) ? onClientNodeEvent(crdNode) :
                         onServerNodeEvent(crdNode);
                 }
-            }
-
-            if (newCrd) {
-                IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(this, false);
-
-                if (fut != null)
-                    fut.get();
-
-                cctx.exchange().coordinatorInitialized();
             }
 
             updateTopologies(crdNode);
