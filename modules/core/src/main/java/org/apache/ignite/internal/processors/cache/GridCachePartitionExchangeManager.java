@@ -935,7 +935,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
             // No need to send to nodes which did not finish their first exchange.
             AffinityTopologyVersion rmtTopVer =
-                lastFut != null ? lastFut.initialVersion() : AffinityTopologyVersion.NONE;
+                lastFut != null ? (lastFut.isDone() ? lastFut.topologyVersion() : lastFut.initialVersion()) : AffinityTopologyVersion.NONE;
 
             Collection<ClusterNode> rmts = CU.remoteNodes(cctx, rmtTopVer);
 

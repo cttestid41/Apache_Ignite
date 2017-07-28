@@ -455,10 +455,17 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     ExchangeDiscoveryEvents evts = exchFut.context().events();
 
+                    if (affReady) {
+                        assert grp.affinity().lastVersion().equals(evts.topologyVersion());
+
+                        lastTopChangeVer = readyTopVer = evts.topologyVersion();
+                    }
+
                     for (DiscoveryEvent evt : evts.events()) {
                         if ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()))
                             removeNode(evt.eventNode().id());
                     }
+
                     ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
 
                     if (log.isDebugEnabled()) {
@@ -1163,7 +1170,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             if (exchangeResVer != null) {
                 // Ignore if exchange already finished or new exchange started.
-                if (readyTopVer.compareTo(exchangeResVer) >= 0 || lastTopChangeVer.compareTo(exchangeResVer) > 0) {
+                if (readyTopVer.compareTo(exchangeResVer) > 0 || lastTopChangeVer.compareTo(exchangeResVer) > 0) {
                     if (log.isDebugEnabled()) {
                         log.debug("Stale exchange id for full partition map update (will ignore) [" +
                             "lastTopChange=" + lastTopChangeVer +
@@ -1187,6 +1194,11 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         ", readTopVer=" + readyTopVer +
                         ", msgVer=" + msgTopVer + ']');
                 }
+
+                U.warn(log, "Stale version for full partition map update message (will ignore) [" +
+                    "lastTopChange=" + lastTopChangeVer +
+                    ", readTopVer=" + readyTopVer +
+                    ", msgVer=" + msgTopVer + ']');
 
                 return false;
             }
@@ -1463,9 +1475,17 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             if (!force) {
                 if (lastTopChangeVer != null && exchId != null && lastTopChangeVer.compareTo(exchId.topologyVersion()) > 0) {
-                    if (log.isDebugEnabled())
-                        log.debug("Stale exchange id for single partition map update (will ignore) [lastExch=" +
-                            lastTopChangeVer + ", exch=" + exchId.topologyVersion() + ']');
+                    if (log.isDebugEnabled()) {
+                        log.debug("Stale exchange id for single partition map update (will ignore) [" +
+                            "lastTopChange=" + lastTopChangeVer +
+                            ", readTopVer=" + readyTopVer +
+                            ", exch=" + exchId.topologyVersion() + ']');
+                    }
+
+                    U.warn(log, "Stale exchange id for single partition map update (will ignore) [" +
+                        "lastTopChange=" + lastTopChangeVer +
+                        ", readTopVer=" + readyTopVer +
+                        ", exch=" + exchId.topologyVersion() + ']');
 
                     return false;
                 }
@@ -1482,9 +1502,14 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     parts.updateSequence(cur.updateSequence(), cur.topologyVersion());
             }
             else  if (isStaleUpdate(cur, parts)) {
-                if (log.isDebugEnabled())
+                if (log.isDebugEnabled()) {
                     log.debug("Stale update for single partition map update (will ignore) [exchId=" + exchId +
                         ", curMap=" + cur + ", newMap=" + parts + ']');
+                }
+
+                U.warn(log, "Stale update for single partition map update (will ignore) [exchId=" + exchId +
+                    ", curMap=" + cur +
+                    ", newMap=" + parts + ']');
 
                 return false;
             }
