@@ -392,6 +392,8 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     private void mergeJoinExchangesCoordinatorChange1(final int srvs, CoordinatorChangeMode mode)
         throws Exception
     {
+        log.info("mergeJoinExchangesCoordinatorChange1 [srvs=" + srvs + ", mode=" + mode + ']');
+
         testSpi = true;
 
         Ignite srv0 = startGrids(srvs);
@@ -402,7 +404,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         IgniteInternalFuture<?> fut = startGrids(srv0, srvs, 2);
 
-        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+        if (latch != null && !latch.await(15, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
         stopGrid(getTestIgniteInstanceName(0), true, false);
