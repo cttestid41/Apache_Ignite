@@ -73,7 +73,12 @@ public interface GridDhtPartitionTopology {
      *
      * @return Topology version.
      */
-    public AffinityTopologyVersion topologyVersion();
+    public AffinityTopologyVersion readyTopologyVersion();
+
+    /**
+     * @return Start topology version of last exchange.
+     */
+    public AffinityTopologyVersion lastTopologyChangeVersion();
 
     /**
      * Gets a future that will be completed when partition exchange map for this
@@ -107,7 +112,8 @@ public interface GridDhtPartitionTopology {
      * @param exchFut Exchange future.
      * @throws IgniteInterruptedCheckedException If interrupted.
      */
-    public void initPartitions(GridDhtPartitionsExchangeFuture exchFut) throws IgniteInterruptedCheckedException;
+    public void initPartitionsWhenAffinityReady(AffinityTopologyVersion affVer, GridDhtPartitionsExchangeFuture exchFut)
+        throws IgniteInterruptedCheckedException;
 
     /**
      * Post-initializes this topology.
@@ -243,7 +249,7 @@ public interface GridDhtPartitionTopology {
     public void onRemoved(GridDhtCacheEntry e);
 
     /**
-     * @param exchangeVer Topology version from exchange. Value should be greater than previously passed. Null value
+     * @param exchangeResVer Result topology version for exchange. Value should be greater than previously passed. Null value
      *      means full map received is not related to exchange
      * @param partMap Update partition map.
      * @param cntrMap Partition update counters.
@@ -253,7 +259,7 @@ public interface GridDhtPartitionTopology {
      * @return {@code True} if local state was changed.
      */
     public boolean update(
-        @Nullable AffinityTopologyVersion exchangeVer,
+        @Nullable AffinityTopologyVersion exchangeResVer,
         GridDhtPartitionFullMap partMap,
         @Nullable Map<Integer, T2<Long, Long>> cntrMap,
         Set<Integer> partsToReload,
@@ -279,15 +285,16 @@ public interface GridDhtPartitionTopology {
      * <p>
      * This method should be called on topology coordinator after all partition messages are received.
      *
+     * @param resTopVer Exchange result version.
      * @param discoEvt Discovery event for which we detect lost partitions.
      * @return {@code True} if partitions state got updated.
      */
-    public boolean detectLostPartitions(DiscoveryEvent discoEvt);
+    public boolean detectLostPartitions(AffinityTopologyVersion resTopVer, DiscoveryEvent discoEvt);
 
     /**
      * Resets the state of all LOST partitions to OWNING.
      */
-    public void resetLostPartitions();
+    public void resetLostPartitions(AffinityTopologyVersion resTopVer);
 
     /**
      * @return Collection of lost partitions, if any.

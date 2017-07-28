@@ -181,6 +181,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                     Ignite node = startGrid(idx.getAndIncrement());
 
+                    // TODO 5578 non-intersecting keys.
 //                    if (getTestIgniteInstanceName(0).equals(node.name()))
 //                        checkNodeCaches(node);
 

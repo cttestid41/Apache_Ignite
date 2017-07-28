@@ -551,7 +551,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                     return true;
                 }
 
-                boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().topologyVersion());
+                boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().lastTopologyChangeVersion());
 
                 // Entry not found, do not continue search if topology did not change and there is no store.
                 if (!cctx.readThroughConfigured() && (topStable || partitionOwned(part))) {

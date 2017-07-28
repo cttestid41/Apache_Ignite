@@ -1799,7 +1799,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                     // Do not check topology version if topology was locked on near node by
                     // external transaction or explicit lock.
-                    if (req.topologyLocked() || !needRemap(req.topologyVersion(), top.topologyVersion())) {
+                    if (req.topologyLocked() || !needRemap(req.topologyVersion(), top.readyTopologyVersion())) {
                         DhtAtomicUpdateResult updRes = update(node, locked, req, res);
 
                         dhtFut = updRes.dhtFuture();
@@ -1808,7 +1808,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     }
                     else
                         // Should remap all keys.
-                        res.remapTopologyVersion(top.topologyVersion());
+                        res.remapTopologyVersion(top.lastTopologyChangeVersion());
                 }
                 finally {
                     top.readUnlock();
@@ -1842,7 +1842,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             if (log.isDebugEnabled())
                 log.debug("Caught invalid partition exception for cache entry (will remap update request): " + req);
 
-            res.remapTopologyVersion(ctx.topology().topologyVersion());
+            res.remapTopologyVersion(ctx.topology().lastTopologyChangeVersion());
         }
         catch (Throwable e) {
             // At least RuntimeException can be thrown by the code above when GridCacheContext is cleaned and there is
@@ -1945,7 +1945,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         boolean hasNear = req.nearCache();
 
         // Assign next version for update inside entries lock.
-        GridCacheVersion ver = ctx.versions().next(top.topologyVersion());
+        GridCacheVersion ver = ctx.versions().next(top.readyTopologyVersion());
 
         if (hasNear)
             res.nearVersion(ver);

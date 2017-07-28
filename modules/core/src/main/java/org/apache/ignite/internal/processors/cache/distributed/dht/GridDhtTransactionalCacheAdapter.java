@@ -850,17 +850,17 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                 }
 
                 try {
-                    if (top != null && needRemap(req.topologyVersion(), top.topologyVersion())) {
+                    if (top != null && needRemap(req.topologyVersion(), top.readyTopologyVersion())) {
                         if (log.isDebugEnabled()) {
                             log.debug("Client topology version mismatch, need remap lock request [" +
                                 "reqTopVer=" + req.topologyVersion() +
-                                ", locTopVer=" + top.topologyVersion() +
+                                ", locTopVer=" + top.readyTopologyVersion() +
                                 ", req=" + req + ']');
                         }
 
                         GridNearLockResponse res = sendClientLockRemapResponse(nearNode,
                             req,
-                            top.topologyVersion());
+                            top.lastTopologyChangeVersion());
 
                         return new GridFinishedFuture<>(res);
                     }
@@ -949,17 +949,17 @@ public abstract class GridDhtTransactionalCacheAdapter<K, V> extends GridDhtCach
                     }
 
                     try {
-                        if (top != null && needRemap(req.topologyVersion(), top.topologyVersion())) {
+                        if (top != null && needRemap(req.topologyVersion(), top.readyTopologyVersion())) {
                             if (log.isDebugEnabled()) {
                                 log.debug("Client topology version mismatch, need remap lock request [" +
                                     "reqTopVer=" + req.topologyVersion() +
-                                    ", locTopVer=" + top.topologyVersion() +
+                                    ", locTopVer=" + top.readyTopologyVersion() +
                                     ", req=" + req + ']');
                             }
 
                             GridNearLockResponse res = sendClientLockRemapResponse(nearNode,
                                 req,
-                                top.topologyVersion());
+                                top.lastTopologyChangeVersion());
 
                             return new GridFinishedFuture<>(res);
                         }

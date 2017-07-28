@@ -214,7 +214,7 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public AffinityTopologyVersion topologyVersion() {
+    @Override public AffinityTopologyVersion readyTopologyVersion() {
         lock.readLock().lock();
 
         try {
@@ -225,6 +225,11 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         finally {
             lock.readLock().unlock();
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override public AffinityTopologyVersion lastTopologyChangeVersion() {
+        throw new UnsupportedOperationException();
     }
 
     /** {@inheritDoc} */
@@ -240,7 +245,8 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public void initPartitions(GridDhtPartitionsExchangeFuture exchFut) {
+    @Override public void initPartitionsWhenAffinityReady(AffinityTopologyVersion affVer,
+        GridDhtPartitionsExchangeFuture exchFut) {
         // No-op.
     }
 
@@ -857,14 +863,14 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean detectLostPartitions(DiscoveryEvent discoEvt) {
+    @Override public boolean detectLostPartitions(AffinityTopologyVersion affVer, DiscoveryEvent discoEvt) {
         assert false : "detectLostPartitions should never be called on client topology";
 
         return false;
     }
 
     /** {@inheritDoc} */
-    @Override public void resetLostPartitions() {
+    @Override public void resetLostPartitions(AffinityTopologyVersion affVer) {
         assert false : "resetLostPartitions should never be called on client topology";
     }
 

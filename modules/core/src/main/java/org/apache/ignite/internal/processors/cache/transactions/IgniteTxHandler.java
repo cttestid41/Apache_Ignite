@@ -381,13 +381,13 @@ public class IgniteTxHandler {
             }
 
             try {
-                if (top != null && needRemap(req.topologyVersion(), top.topologyVersion(), req)) {
+                if (top != null && needRemap(req.topologyVersion(), top.readyTopologyVersion(), req)) {
                     if (txPrepareMsgLog.isDebugEnabled()) {
                         txPrepareMsgLog.debug("Topology version mismatch for near prepare, need remap transaction [" +
                             "txId=" + req.version() +
                             ", node=" + nearNode.id() +
                             ", reqTopVer=" + req.topologyVersion() +
-                            ", locTopVer=" + top.topologyVersion() +
+                            ", locTopVer=" + top.readyTopologyVersion() +
                             ", req=" + req + ']');
                     }
 
@@ -400,7 +400,7 @@ public class IgniteTxHandler {
                         req.version(),
                         null,
                         null,
-                        top.topologyVersion(),
+                        top.lastTopologyChangeVersion(),
                         req.onePhaseCommit(),
                         req.deployInfo() != null);
 

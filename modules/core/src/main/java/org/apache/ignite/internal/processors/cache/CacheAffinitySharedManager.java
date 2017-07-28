@@ -1298,7 +1298,15 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         });
     }
 
-    public void onLocalJoin(final GridDhtPartitionsExchangeFuture fut, GridDhtPartitionsFullMessage msg)
+    /**
+     * @param fut Current exchange future.
+     * @param msg Message finish message.
+     * @param resTopVer Result topology version.
+     * @throws IgniteCheckedException If failed.
+     */
+    public void onLocalJoin(final GridDhtPartitionsExchangeFuture fut,
+        GridDhtPartitionsFullMessage msg,
+        final AffinityTopologyVersion resTopVer)
         throws IgniteCheckedException {
         final Set<Integer> affReq = fut.context().groupsAffinityRequestOnJoin();
 
@@ -1322,6 +1330,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     List<List<ClusterNode>> assignments = affMsg.createAssignments(nodesByOrder, evts.discoveryCache());
 
+                    assert resTopVer.equals(evts.topologyVersion());
+
                     // TODO 5578 transfer ideal for fairaffinity
                     // Calculate ideal assignments.
                     if (!aff.centralizedAffinityFunction())
@@ -1333,7 +1343,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     assert grp != null;
 
-                    grp.topology().initPartitions(fut);
+                    grp.topology().initPartitionsWhenAffinityReady(resTopVer, fut);
                 }
             }
         });

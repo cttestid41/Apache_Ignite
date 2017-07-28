@@ -433,7 +433,7 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
             // While we are holding read lock, register lock future for partition release future.
             IgniteUuid lockId = IgniteUuid.fromUuid(ctx.localNodeId());
 
-            topVer = top.topologyVersion();
+            topVer = top.readyTopologyVersion();
 
             MultiUpdateFuture fut = new MultiUpdateFuture(topVer);
 

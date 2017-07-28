@@ -446,9 +446,11 @@ public class IgniteCacheClientNodePartitionsExchangeTest extends GridCommonAbstr
             for (IgniteInternalCache cache : kernal.context().cache().caches()) {
                 GridDhtPartitionTopology top = cache.context().topology();
 
+                waitForReadyTopology(top, topVer);
+
                 assertEquals("Unexpected topology version [node=" + ignite.name() + ", cache=" + cache.name() + ']',
                     topVer,
-                    top.topologyVersion());
+                    top.readyTopologyVersion());
             }
         }
 

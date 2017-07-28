@@ -626,7 +626,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     return true;
                 }
                 else {
-                    boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().topologyVersion());
+                    boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().lastTopologyChangeVersion());
 
                     // Entry not found, do not continue search if topology did not change and there is no store.
                     return !cctx.readThroughConfigured() && (topStable || partitionOwned(part));

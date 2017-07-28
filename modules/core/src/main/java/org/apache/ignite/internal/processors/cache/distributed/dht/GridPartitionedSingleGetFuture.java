@@ -442,7 +442,7 @@ public class GridPartitionedSingleGetFuture extends GridCacheFutureAdapter<Objec
                     return true;
                 }
 
-                boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().topologyVersion());
+                boolean topStable = cctx.isReplicated() || topVer.equals(cctx.topology().lastTopologyChangeVersion());
 
                 // Entry not found, complete future with null result if topology did not change and there is no store.
                 if (!cctx.readThroughConfigured() && (topStable || partitionOwned(part))) {

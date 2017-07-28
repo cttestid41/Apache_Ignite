@@ -89,6 +89,7 @@ import org.apache.ignite.internal.processors.query.schema.SchemaNodeLeaveExchang
 import org.apache.ignite.internal.processors.timeout.GridTimeoutObject;
 import org.apache.ignite.internal.util.GridListSet;
 import org.apache.ignite.internal.util.GridPartitionStateMap;
+import org.apache.ignite.internal.util.IgniteUtils;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -1777,7 +1778,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 }
 
                 log.info("Merge exchange future on finish [curFut=" + curFut.initialVersion() +
-                    ", mergedFut=" + fut.initialVersion() + ']');
+                    ", mergedFut=" + fut.initialVersion() +
+                    ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
+                    ", evtNode=" + fut.discoveryEvent().eventNode().id()+ ']');
 
                 DiscoveryEvent evt = fut.discoveryEvent();
 
@@ -1876,7 +1879,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     }
 
                     log.info("Merge exchange future [curFut=" + curFut.initialVersion() +
-                        ", mergedFut=" + fut.initialVersion() + ']');
+                        ", mergedFut=" + fut.initialVersion() +
+                        ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
+                        ", evtNode=" + fut.discoveryEvent().eventNode().id()+ ']');
 
                     curFut.context().events().addEvent(fut.initialVersion(),
                         fut.discoveryEvent(),

@@ -1373,9 +1373,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return {@code True} if exchange triggered by server node join or fail.
      */
     public boolean serverNodeDiscoveryEvent() {
-        assert discoEvt != null;
+        assert exchCtx != null;
 
-        return discoEvt.type() != EVT_DISCOVERY_CUSTOM_EVT && !CU.clientNode(discoEvt.eventNode());
+        return exchCtx.events().serverJoin() || exchCtx.events().serverLeft();
     }
 
     /** {@inheritDoc} */
@@ -1402,12 +1402,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         if (err == null) {
             if (centralizedAff) {
+                assert !exchCtx.mergeExchanges();
+
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                     if (grp.isLocal())
                         continue;
 
                     try {
-                        grp.topology().initPartitions(this);
+                        grp.topology().initPartitionsWhenAffinityReady(res, this);
                     }
                     catch (IgniteInterruptedCheckedException e) {
                         U.error(log, "Failed to initialize partitions.", e);
@@ -1428,11 +1430,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            if (serverNodeDiscoveryEvent() &&
-                (discoEvt.type() == EVT_NODE_LEFT ||
-                discoEvt.type() == EVT_NODE_FAILED ||
-                discoEvt.type() == EVT_NODE_JOINED))
-                detectLostPartitions();
+            if (serverNodeDiscoveryEvent())
+                detectLostPartitions(res);
 
             Map<Integer, CacheValidation> m = U.newHashMap(cctx.cache().cacheGroups().size());
 
@@ -2072,8 +2071,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /**
      * Detect lost partitions.
+     *
+     * @param resTopVer Result topology version.
      */
-    private void detectLostPartitions() {
+    private void detectLostPartitions(AffinityTopologyVersion resTopVer) {
         boolean detected = false;
 
         synchronized (cctx.exchange().interruptLock()) {
@@ -2082,7 +2083,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                 if (!grp.isLocal()) {
-                    boolean detectedOnGrp = grp.topology().detectLostPartitions(discoEvt);
+                    boolean detectedOnGrp = grp.topology().detectLostPartitions(resTopVer, discoEvt);
 
                     detected |= detectedOnGrp;
                 }
@@ -2097,6 +2098,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param cacheNames Cache names.
      */
     private void resetLostPartitions(Collection<String> cacheNames) {
+        assert !exchCtx.mergeExchanges();
+
         synchronized (cctx.exchange().interruptLock()) {
             if (Thread.currentThread().isInterrupted())
                 return;
@@ -2107,7 +2110,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 for (String cacheName : cacheNames) {
                     if (grp.hasCache(cacheName)) {
-                        grp.topology().resetLostPartitions();
+                        grp.topology().resetLostPartitions(initialVersion());
 
                         break;
                     }
@@ -2274,7 +2277,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     assignPartitionsStates();
 
                 if (exchCtx.events().serverLeft())
-                    detectLostPartitions();
+                    detectLostPartitions(resTopVer);
             }
 
             updateLastVersion(cctx.versions().last());
@@ -2653,16 +2656,24 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             else
                 assert node == null : node;
 
+            AffinityTopologyVersion resTopVer = initialVersion();
+
             if (exchCtx.mergeExchanges()) {
                 if (msg.resultTopologyVersion() != null && !initialVersion().equals(msg.resultTopologyVersion())) {
                     log.info("Received full message, need merge [curFut=" + initialVersion() +
                         ", resVer=" + msg.resultTopologyVersion() + ']');
 
+                    resTopVer = msg.resultTopologyVersion();
+
                     cctx.exchange().mergeExchanges(this, msg);
+
+                    assert resTopVer.equals(exchCtx.events().topologyVersion()) :  "Unexpected result version [" +
+                        "msgVer=" + resTopVer +
+                        ", locVer=" + exchCtx.events().topologyVersion() + ']';
                 }
 
                 if (localJoinExchange())
-                    cctx.affinity().onLocalJoin(this, msg);
+                    cctx.affinity().onLocalJoin(this, msg, resTopVer);
                 else {
                     if (exchCtx.events().serverLeft())
                         cctx.affinity().mergeExchangesOnServerLeft(this, msg);
@@ -2678,9 +2689,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            if (cctx.localNode().order() == 3L)
-                System.out.println();
-            updatePartitionFullMap(msg);
+            updatePartitionFullMap(resTopVer, msg);
 
             IgniteCheckedException err = null;
 
@@ -2690,7 +2699,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 cctx.kernalContext().state().onStateChangeError(msg.getErrorsMap(), exchActions.stateChangeRequest());
             }
 
-            onDone(exchCtx.events().topologyVersion(), err);
+            onDone(resTopVer, err);
         }
         catch (IgniteCheckedException e) {
             onDone(e);
@@ -2700,9 +2709,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * Updates partition map in all caches.
      *
+     * @param resTopVer Result topology version.
      * @param msg Partitions full messages.
      */
-    private void updatePartitionFullMap(GridDhtPartitionsFullMessage msg) {
+    private void updatePartitionFullMap(AffinityTopologyVersion resTopVer, GridDhtPartitionsFullMessage msg) {
         cctx.versions().onExchange(msg.lastVersion().order());
 
         assert partHistSuppliers.isEmpty();
@@ -2717,7 +2727,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
             if (grp != null) {
-                grp.topology().update(exchCtx.events().topologyVersion(),
+                grp.topology().update(resTopVer,
                     entry.getValue(),
                     cntrMap,
                     msg.partsToReload(cctx.localNodeId(), grpId),
@@ -2775,6 +2785,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     assert centralizedAff;
 
                     if (crd.equals(node)) {
+                        AffinityTopologyVersion resTopVer = initialVersion();
+
                         cctx.affinity().onExchangeChangeAffinityMessage(GridDhtPartitionsExchangeFuture.this,
                             crd.isLocal(),
                             msg);
@@ -2785,10 +2797,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             assert partsMsg != null : msg;
                             assert partsMsg.lastVersion() != null : partsMsg;
 
-                            updatePartitionFullMap(partsMsg);
+                            updatePartitionFullMap(resTopVer, partsMsg);
                         }
 
-                        onDone(initialVersion());
+                        onDone(resTopVer);
                     }
                     else {
                         if (log.isDebugEnabled()) {
