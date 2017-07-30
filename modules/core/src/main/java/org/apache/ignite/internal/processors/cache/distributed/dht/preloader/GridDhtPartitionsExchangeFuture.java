@@ -1770,6 +1770,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
             @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
+                if (cctx.kernalContext().isStopping())
+                    return;
+
                 FinishState finishState0;
 
                 synchronized (GridDhtPartitionsExchangeFuture.this) {
@@ -1777,7 +1780,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
 
                 if (finishState0 == null) {
-                    assert discoEvt.type() == EVT_NODE_JOINED && CU.clientNode(discoEvt.eventNode()) : discoEvt;
+                    assert discoEvt.type() == EVT_NODE_JOINED && CU.clientNode(discoEvt.eventNode()) : this;
 
                     finishState0 = new FinishState(cctx.localNodeId(),
                         initialVersion(),
