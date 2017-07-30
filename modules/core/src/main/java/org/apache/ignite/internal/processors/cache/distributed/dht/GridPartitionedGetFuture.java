@@ -311,7 +311,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                             remapKeys.add(key);
                     }
 
-                    AffinityTopologyVersion updTopVer = cctx.discovery().topologyVersionEx();
+                    AffinityTopologyVersion updTopVer = cctx.shared().exchange().readyAffinityVersion();
 
                     assert updTopVer.compareTo(topVer) > 0 : "Got invalid partitions for local node but topology version did " +
                         "not change [topVer=" + topVer + ", updTopVer=" + updTopVer +
