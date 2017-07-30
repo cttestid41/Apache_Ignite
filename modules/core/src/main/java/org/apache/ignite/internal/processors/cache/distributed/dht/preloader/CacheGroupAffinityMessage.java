@@ -126,7 +126,7 @@ public class CacheGroupAffinityMessage implements Message {
 
         for (Integer grpId : affReq) {
             if (!cachesAff.containsKey(grpId)) {
-                List<List<ClusterNode>> assign = cctx.affinity().affinity(grpId).assignments(topVer);
+                List<List<ClusterNode>> assign = cctx.affinity().affinity(grpId).readyAssignments(topVer);
 
                 cachesAff.put(grpId, new CacheGroupAffinityMessage(assign, null));
             }

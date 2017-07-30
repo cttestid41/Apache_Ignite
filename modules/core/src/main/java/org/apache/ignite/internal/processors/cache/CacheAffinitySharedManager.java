@@ -1513,8 +1513,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                         fut.context().addGroupAffinityRequestOnJoin(grp.groupId());
                     else {
                         List<List<ClusterNode>> aff = grp.affinity().calculate(topVer,
-                                fut.discoveryEvent(),
-                                fut.discoCache());
+                            fut.discoveryEvent(),
+                            fut.discoCache());
 
                         grp.affinity().initialize(topVer, aff);
                     }
