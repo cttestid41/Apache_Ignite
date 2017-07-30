@@ -53,10 +53,10 @@ public class ExchangeContext {
     /**
      * @param fut Exchange future.
      */
-    public ExchangeContext(GridDhtPartitionsExchangeFuture fut) {
+    public ExchangeContext(boolean crd, GridDhtPartitionsExchangeFuture fut) {
         int protocolVer = exchangeProtocolVersion(fut.discoCache().minimumNodeVersion());
 
-        if (compatibilityNode) {
+        if (compatibilityNode || (crd && fut.localJoinExchange())) {
             fetchAffOnJoin = true;
 
             merge = false;

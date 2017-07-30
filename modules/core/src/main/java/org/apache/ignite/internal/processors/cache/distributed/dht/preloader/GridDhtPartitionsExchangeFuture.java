@@ -497,8 +497,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert discoEvt != null : this;
         assert exchId.nodeId().equals(discoEvt.eventNode().id()) : this;
 
-        exchCtx = new ExchangeContext(this);
-
         try {
             AffinityTopologyVersion topVer = initialVersion();
 
@@ -509,6 +507,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             crd = srvNodes.isEmpty() ? null : srvNodes.get(0);
 
             boolean crdNode = crd != null && crd.isLocal();
+
+            exchCtx = new ExchangeContext(crdNode, this);
 
             assert state == null : state;
 
@@ -1211,7 +1211,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * @return {@code True} if exchange for local node join.
      */
-    boolean localJoinExchange() {
+    public boolean localJoinExchange() {
         return discoEvt.type() == EVT_NODE_JOINED && discoEvt.eventNode().isLocal();
     }
 

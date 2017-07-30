@@ -1833,7 +1833,10 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     if (grpAdded) {
                         AffinityAssignment aff = cache.aff.cachedAffinity(cache.aff.lastVersion());
 
-                        assert evts.topologyVersion().equals(aff.topologyVersion());
+                        assert evts.topologyVersion().equals(aff.topologyVersion()) : "Unexpected version [" +
+                            "grp=" + cache.aff.cacheOrGroupName() +
+                            ", evts=" + evts.topologyVersion() +
+                            ", aff=" + cache.aff.lastVersion() + ']';
 
                         Map<UUID, GridDhtPartitionMap> map = affinityFullMap(aff);
 
@@ -1890,7 +1893,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         throws IgniteCheckedException
     {
         if (addedOnExchnage) {
-            if (aff.lastVersion().equals(AffinityTopologyVersion.NONE)) {
+            if (!aff.lastVersion().equals(evts.topologyVersion())) {
                 List<List<ClusterNode>> newAff = aff.calculate(evts.topologyVersion(),
                     evts.lastEvent(),
                     evts.discoveryCache());
