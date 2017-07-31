@@ -1894,7 +1894,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         if (!topFut.isDone()) {
             Thread curThread = Thread.currentThread();
 
-            if (curThread instanceof IgniteThread) {
+            if (!req.topologyLocked() && (curThread instanceof IgniteThread)) {
                 final IgniteThread thread = (IgniteThread)curThread;
 
                 if (thread.hasStripeOrPolicy()) {
