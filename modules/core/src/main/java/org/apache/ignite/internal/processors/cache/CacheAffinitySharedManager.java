@@ -1369,7 +1369,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
         assert evts.serverLeft();
 
-        log.info("mergeExchangesInitAffinityOnServerLeft [topVer=" + evts.discoveryCache().version() + ']');
+        log.info("mergeExchangesInitAffinityOnServerLeft [topVer=" + evts.topologyVersion()+ ']');
 
         forAllRegisteredCacheGroups(new IgniteInClosureX<CacheGroupDescriptor>() {
             @Override public void applyx(CacheGroupDescriptor desc) throws IgniteCheckedException {
@@ -1377,7 +1377,11 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                 CacheGroupHolder cache = groupHolder(topVer, desc);
 
-                cache.affinity().calculate(topVer, evts.lastEvent(), evts.discoveryCache());
+                List<List<ClusterNode>> assign =
+                    cache.affinity().calculate(topVer, evts.lastEvent(), evts.discoveryCache());
+
+                if (!cache.rebalanceEnabled)
+                    cache.affinity().initialize(topVer, assign);
             }
         });
 
