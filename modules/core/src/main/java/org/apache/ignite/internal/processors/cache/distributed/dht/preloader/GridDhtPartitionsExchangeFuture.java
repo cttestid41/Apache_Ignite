@@ -2343,8 +2343,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 onDone(exchCtx.events().topologyVersion(), err);
 
-                for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : pendingSingleMsgs.entrySet())
+                for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : pendingSingleMsgs.entrySet()) {
+                    log.info("Process pending message on coordinator [node=" + e.getKey() +
+                        ", ver=" + initialVersion() +
+                        ", resVer=" + resTopVer + ']');
+
                     processSingleMessage(e.getKey(), e.getValue());
+                }
             }
         }
         catch (IgniteCheckedException e) {
@@ -2540,7 +2545,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 log.info("Send restore state response [node=" + node.id() +
                     ", exchVer=" + msg.restoreExchangeId().topologyVersion() +
-                    ", hasState=" + (finishState0 != null) + ']');
+                    ", hasState=" + (finishState0 != null) +
+                    ", affReq=" + !F.isEmpty(res.cacheGroupsAffinityRequest()) + ']');
 
                 res.finishMessage(finishState0 != null ? finishState0.msg : null);
 
@@ -3060,6 +3066,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     Map<Integer, CacheGroupAffinityMessage> joinedNodeAff = null;
 
                     for (Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e : msgs.entrySet()) {
+                        this.msgs.put(e.getKey().id(), e.getValue());
+
                         GridDhtPartitionsSingleMessage msg = e.getValue();
 
                         Collection<Integer> affReq = msg.cacheGroupsAffinityRequest();

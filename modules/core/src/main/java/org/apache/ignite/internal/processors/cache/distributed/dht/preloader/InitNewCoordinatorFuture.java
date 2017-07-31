@@ -37,6 +37,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
+import org.apache.ignite.internal.util.typedef.F;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
@@ -198,7 +199,9 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
      * @param msg Message.
      */
     public void onMessage(ClusterNode node, GridDhtPartitionsSingleMessage msg) {
-        log.info("Init new coordinator, received response [node=" + node.id() + ']');
+        log.info("Init new coordinator, received response [node=" + node.id() +
+            ", fullMsg=" + (msg.finishMessage() != null) +
+            ", affReq=" + !F.isEmpty(msg.cacheGroupsAffinityRequest()) + ']');
 
         assert msg.restoreState() : msg;
 
@@ -227,6 +230,9 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
             restoreStateFut.onDone();
     }
 
+    /**
+     *
+     */
     private void onAllReceived() {
         if (fullMsg != null) {
             AffinityTopologyVersion resVer = fullMsg.resultTopologyVersion();
@@ -238,6 +244,10 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
 
                 if (msgVer != null) {
                     assert msgVer.topologyVersion().compareTo(initTopVer) > 0 : msgVer;
+
+                    log.info("Process joined node message [resVer=" + resVer +
+                        ", initTopVer=" + initTopVer +
+                        ", msgVer=" + msgVer.topologyVersion() + ']');
 
                     if (msgVer.topologyVersion().compareTo(resVer) > 0)
                         it.remove();
@@ -256,6 +266,9 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
                     it.remove();
 
                     assert msgVer.topologyVersion().compareTo(initTopVer) > 0 : msgVer;
+
+                    log.info("Process joined node message [initTopVer=" + initTopVer +
+                        ", msgVer=" + msgVer.topologyVersion() + ']');
 
                     if (joinExchMsgs == null)
                         joinExchMsgs = new HashMap<>();
