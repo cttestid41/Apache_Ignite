@@ -50,6 +50,7 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.PA;
 import org.apache.ignite.lang.IgniteBiPredicate;
+import org.apache.ignite.lang.IgniteClosure;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.plugin.extensions.communication.Message;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
@@ -83,6 +84,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /** */
     private boolean cfgCache = true;
 
+    /** */
+    private IgniteClosure<String, Boolean> clientC;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
@@ -93,6 +97,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             cfg.setCommunicationSpi(new TestRecordingCommunicationSpi());
 
         Boolean clientMode = client.get();
+
+        if (clientMode == null && clientC != null)
+            clientMode = clientC.apply(igniteInstanceName);
 
         if (clientMode != null) {
             cfg.setClientMode(clientMode);
@@ -240,31 +247,47 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testStartCacheOnJoinAndJoinMerge1() throws Exception {
-        startCacheOnJoinAndJoinMerge1(2);
+    public void testStartCacheOnJoinAndJoinMerge_2_nodes() throws Exception {
+        startCacheOnJoinAndJoinMerge1(2, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testStartCacheOnJoinAndJoinMerge1_1() throws Exception {
-        startCacheOnJoinAndJoinMerge1(4);
+    public void testStartCacheOnJoinAndJoinMerge_4_nodes() throws Exception {
+        startCacheOnJoinAndJoinMerge1(4, false);
     }
 
     /**
-     * @param srvs Number of servers to start.
      * @throws Exception If failed.
      */
-    private void startCacheOnJoinAndJoinMerge1(int srvs) throws Exception {
+    public void testStartCacheOnJoinAndJoinMerge_WithClients() throws Exception {
+        startCacheOnJoinAndJoinMerge1(5, true);
+    }
+
+    /**
+     * @param nodes Number of nodes to start.
+     * @param withClients If {@code true} starts both servers and clients.
+     * @throws Exception If failed.
+     */
+    private void startCacheOnJoinAndJoinMerge1(int nodes, boolean withClients) throws Exception {
         cfgCache = false;
 
         final IgniteEx srv0 = startGrid(0);
 
-        mergeExchangeWaitVersion(srv0, srvs + 1);
+        mergeExchangeWaitVersion(srv0, nodes + 1);
+
+        if (withClients) {
+            clientC = new IgniteClosure<String, Boolean>() {
+                @Override public Boolean apply(String nodeName) {
+                    return getTestIgniteInstanceIndex(nodeName) % 2 == 0;
+                }
+            };
+        }
 
         cfgCache = true;
 
-        IgniteInternalFuture fut = startGrids(srv0, 1, srvs);
+        IgniteInternalFuture fut = startGrids(srv0, 1, nodes);
 
         fut.get();
 
@@ -431,7 +454,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     private void mergeJoinExchangesCoordinatorChange1(final int srvs, CoordinatorChangeMode mode)
         throws Exception
     {
-        log.info("mergeJoinExchangesCoordinatorChange1 [srvs=" + srvs + ", mode=" + mode + ']');
+        log.info("Test mergeJoinExchangesCoordinatorChange1 [srvs=" + srvs + ", mode=" + mode + ']');
 
         testSpi = true;
 

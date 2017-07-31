@@ -18,6 +18,7 @@
 package org.apache.ignite.internal.processors.cache.distributed.dht.preloader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -36,8 +37,10 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
+import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_JOINED;
+import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.*;
 
 /**
  *
@@ -53,7 +56,7 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
     private Map<ClusterNode, GridDhtPartitionsSingleMessage> msgs = new HashMap<>();
 
     /** */
-    private Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs;
+    private Map<UUID, GridDhtPartitionsSingleMessage> joinExchMsgs;
 
     /** */
     private GridFutureAdapter restoreStateFut;
@@ -65,20 +68,15 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
     private AffinityTopologyVersion initTopVer;
 
     /** */
-    private Map<UUID, GridDhtPartitionExchangeId> extraNodes;
+    private Map<UUID, GridDhtPartitionExchangeId> joinedNodes;
 
     /** */
-    // TODO IGNITE-5578 backward compatibility
-    private boolean restoreState = true;
-
-    public boolean restoreState() {
-        return restoreState;
-    }
+    private boolean restoreState;
 
     /**
      * @param cctx Context.
      */
-    public InitNewCoordinatorFuture(GridCacheSharedContext cctx) {
+    InitNewCoordinatorFuture(GridCacheSharedContext cctx) {
         this.log = cctx.logger(getClass());
     }
 
@@ -91,6 +89,8 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
 
         GridCacheSharedContext cctx = exchFut.sharedContext();
 
+        restoreState = exchangeProtocolVersion(exchFut.context().events().discoveryCache().minimumNodeVersion()) > 1;
+
         boolean newAff = exchFut.localJoinExchange();
 
         IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(exchFut, newAff);
@@ -98,68 +98,76 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
         if (fut != null)
             add(fut);
 
-        DiscoCache curDiscoCache = cctx.discovery().discoCache();
+        if (restoreState) {
+            DiscoCache curDiscoCache = cctx.discovery().discoCache();
 
-        DiscoCache discoCache = exchFut.discoCache();
+            DiscoCache discoCache = exchFut.discoCache();
 
-        List<ClusterNode> nodes = new ArrayList<>();
+            List<ClusterNode> nodes = new ArrayList<>();
 
-        synchronized (this) {
-            for (ClusterNode node : discoCache.allNodes()) {
-                if (!node.isLocal() && cctx.discovery().alive(node)) {
-                    awaited.add(node.id());
-
-                    nodes.add(node);
-                }
-            }
-
-            if (exchFut.context().mergeExchanges() && !curDiscoCache.version().equals(discoCache.version())) {
-                for (ClusterNode node : curDiscoCache.allNodes()) {
-                    if (discoCache.node(node.id()) == null) {
+            synchronized (this) {
+                for (ClusterNode node : discoCache.allNodes()) {
+                    if (!node.isLocal() && cctx.discovery().alive(node)) {
                         awaited.add(node.id());
 
                         nodes.add(node);
-
-                        if (extraNodes == null)
-                            extraNodes = new HashMap<>();
-
-                        GridDhtPartitionExchangeId exchId = new GridDhtPartitionExchangeId(node.id(),
-                            EVT_NODE_JOINED,
-                            new AffinityTopologyVersion(node.order()));
-
-                        extraNodes.put(node.id(), exchId);
                     }
+                }
+
+                if (exchFut.context().mergeExchanges() && !curDiscoCache.version().equals(discoCache.version())) {
+                    for (ClusterNode node : curDiscoCache.allNodes()) {
+                        if (discoCache.node(node.id()) == null) {
+                            if (exchangeProtocolVersion(node.version()) == 1)
+                                break;
+
+                            awaited.add(node.id());
+
+                            nodes.add(node);
+
+                            if (joinedNodes == null)
+                                joinedNodes = new HashMap<>();
+
+                            GridDhtPartitionExchangeId exchId = new GridDhtPartitionExchangeId(node.id(),
+                                EVT_NODE_JOINED,
+                                new AffinityTopologyVersion(node.order()));
+
+                            joinedNodes.put(node.id(), exchId);
+                        }
+                    }
+
+                    if (joinedNodes == null)
+                        joinedNodes = Collections.emptyMap();
+                }
+
+                if (!awaited.isEmpty()) {
+                    restoreStateFut = new GridFutureAdapter();
+
+                    add(restoreStateFut);
                 }
             }
 
-            if (!awaited.isEmpty()) {
-                restoreStateFut = new GridFutureAdapter();
+            if (!nodes.isEmpty()) {
+                GridDhtPartitionsSingleRequest req = GridDhtPartitionsSingleRequest.restoreStateRequest(exchFut.exchangeId(),
+                    exchFut.exchangeId());
 
-                add(restoreStateFut);
-            }
-        }
+                for (ClusterNode node : nodes) {
+                    try {
+                        GridDhtPartitionsSingleRequest sndReq = req;
 
-        if (!nodes.isEmpty()) {
-            GridDhtPartitionsSingleRequest req = GridDhtPartitionsSingleRequest.restoreStateRequest(exchFut.exchangeId(),
-                exchFut.exchangeId());
+                        if (joinedNodes.containsKey(node.id())) {
+                            sndReq = GridDhtPartitionsSingleRequest.restoreStateRequest(
+                                joinedNodes.get(node.id()),
+                                exchFut.exchangeId());
+                        }
 
-            for (ClusterNode node : nodes) {
-                try {
-                    GridDhtPartitionsSingleRequest sndReq = req;
-
-                    if (extraNodes != null && extraNodes.containsKey(node.id())) {
-                        sndReq = GridDhtPartitionsSingleRequest.restoreStateRequest(
-                            extraNodes.get(node.id()),
-                            exchFut.exchangeId());
+                        cctx.io().send(node, sndReq, GridIoPolicy.SYSTEM_POOL);
                     }
+                    catch (ClusterTopologyCheckedException e) {
+                        if (log.isDebugEnabled())
+                            log.debug("Failed to send partitions request, node failed: " + node);
 
-                    cctx.io().send(node, sndReq, GridIoPolicy.SYSTEM_POOL);
-                }
-                catch (ClusterTopologyCheckedException e) {
-                    if (log.isDebugEnabled())
-                        log.debug("Failed to send partitions request, node failed: " + node);
-
-                    onNodeLeft(node.id());
+                        onNodeLeft(node.id());
+                    }
                 }
             }
         }
@@ -167,15 +175,15 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
         markInitialized();
     }
 
+    boolean restoreState() {
+        return restoreState;
+    }
+
     /**
      * @return Received messages.
      */
     Map<ClusterNode, GridDhtPartitionsSingleMessage> messages() {
         return msgs;
-    }
-
-    Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchangeMessages() {
-        return mergedJoinExchMsgs;
     }
 
     /**
@@ -220,32 +228,49 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
     }
 
     private void onAllReceived() {
-        AffinityTopologyVersion resVer = fullMsg != null ? fullMsg.resultTopologyVersion() : initTopVer;
+        if (fullMsg != null) {
+            AffinityTopologyVersion resVer = fullMsg.resultTopologyVersion();
 
-        for (Iterator<Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage>> it = msgs.entrySet().iterator(); it.hasNext();) {
-            Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e = it.next();
+            for (Iterator<Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage>> it = msgs.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e = it.next();
 
-            GridDhtPartitionsSingleMessage msg = e.getValue();
+                GridDhtPartitionExchangeId msgVer = joinedNodes.get(e.getKey().id());
 
-            GridDhtPartitionExchangeId msgVer = extraNodes != null ? extraNodes.get(e.getKey().id()) : null;
+                if (msgVer != null) {
+                    assert msgVer.topologyVersion().compareTo(initTopVer) > 0 : msgVer;
 
-            if (msgVer != null) {
-                if (msgVer.topologyVersion().compareTo(resVer) < 0) {
-                    it.remove();
-
-                    continue;
+                    if (msgVer.topologyVersion().compareTo(resVer) > 0)
+                        it.remove();
+                    else
+                        e.getValue().exchangeId(msgVer);
                 }
-
-                assert msgVer.topologyVersion().compareTo(initTopVer) > 0 : msgVer;
-
-                if (mergedJoinExchMsgs == null)
-                    mergedJoinExchMsgs = new HashMap<>();
-
-                msg.exchangeId(msgVer);
-
-                mergedJoinExchMsgs.put(e.getKey().id(), msg);
             }
         }
+        else {
+            for (Iterator<Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage>> it = msgs.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e = it.next();
+
+                GridDhtPartitionExchangeId msgVer = joinedNodes.get(e.getKey().id());
+
+                if (msgVer != null) {
+                    it.remove();
+
+                    assert msgVer.topologyVersion().compareTo(initTopVer) > 0 : msgVer;
+
+                    if (joinExchMsgs == null)
+                        joinExchMsgs = new HashMap<>();
+
+                    e.getValue().exchangeId(msgVer);
+
+                    joinExchMsgs.put(e.getKey().id(), e.getValue());
+                }
+            }
+
+        }
+    }
+
+    @Nullable GridDhtPartitionsSingleMessage joinExchangeMessage(UUID nodeId) {
+        return joinExchMsgs != null ? joinExchMsgs.get(nodeId) : null;
     }
 
     /**

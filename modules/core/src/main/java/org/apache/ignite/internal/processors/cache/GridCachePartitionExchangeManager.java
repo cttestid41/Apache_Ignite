@@ -659,6 +659,11 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         // Finish all exchange futures.
         ExchangeFutureSet exchFuts0 = exchFuts;
 
+        for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
+            if (task instanceof GridDhtPartitionsExchangeFuture)
+                ((GridDhtPartitionsExchangeFuture)task).onDone(stopErr);
+        }
+
         if (exchFuts0 != null) {
             for (GridDhtPartitionsExchangeFuture f : exchFuts.values())
                 f.onDone(stopErr);

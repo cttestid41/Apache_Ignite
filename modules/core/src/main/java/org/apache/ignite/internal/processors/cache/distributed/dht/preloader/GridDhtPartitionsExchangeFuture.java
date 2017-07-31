@@ -1499,6 +1499,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert node != null;
         assert state == ExchangeLocalState.CRD : state;
 
+        if (msg == null && newCrdFut != null)
+            msg = newCrdFut.joinExchangeMessage(node.id());
+
         UUID nodeId = node.id();
 
         boolean wait = false;
@@ -1512,6 +1515,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 mergedJoinExchMsgs = new LinkedHashMap<>();
 
             if (msg != null) {
+                assert msg.exchangeId().topologyVersion().equals(new AffinityTopologyVersion(node.order()));
+
                 log.info("Merge server join exchange, message received [curFut=" + initialVersion() +
                     ", node=" + nodeId + ']');
 
@@ -3033,20 +3038,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (newCrdFut.restoreState()) {
             GridDhtPartitionsFullMessage fullMsg = newCrdFut.fullMessage();
 
-            boolean process = fullMsg == null;
-
             assert msgs.isEmpty() : msgs;
-
-            for (Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e : newCrdFut.messages().entrySet()) {
-                GridDhtPartitionsSingleMessage msg = e.getValue();
-
-                if (!msg.client()) {
-                    msgs.put(e.getKey().id(), e.getValue());
-
-                    if (process)
-                        updatePartitionSingleMap(e.getKey().id(), msg);
-                }
-            }
 
             if (fullMsg != null) {
                 log.info("New coordinator restored state [ver=" + initialVersion() +
@@ -3080,13 +3072,24 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         }
                     }
 
-                    sendAllPartitions(fullMsg, msgs.keySet(), newCrdFut.mergedJoinExchangeMessages(), joinedNodeAff);
+                    sendAllPartitions(fullMsg, msgs.keySet(), null, joinedNodeAff);
                 }
 
                 return;
             }
-            else
+            else {
                 log.info("New coordinator restore state finished [ver=" + initialVersion() + ']');
+
+                for (Map.Entry<ClusterNode, GridDhtPartitionsSingleMessage> e : newCrdFut.messages().entrySet()) {
+                    GridDhtPartitionsSingleMessage msg = e.getValue();
+
+                    if (!msg.client()) {
+                        msgs.put(e.getKey().id(), e.getValue());
+
+                        updatePartitionSingleMap(e.getKey().id(), msg);
+                    }
+                }
+            }
 
             allRcvd = true;
 
