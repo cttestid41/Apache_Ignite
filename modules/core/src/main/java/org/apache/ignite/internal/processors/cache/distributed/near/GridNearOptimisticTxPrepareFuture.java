@@ -535,6 +535,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                     tx.subjectId(),
                     tx.taskNameHash(),
                     m.clientFirst(),
+                    true,
                     tx.activeCachesDeploymentEnabled());
 
                 for (IgniteTxEntry txEntry : m.entries()) {

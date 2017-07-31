@@ -142,7 +142,7 @@ public class IgniteTxHandler {
     private void processNearTxPrepareRequest0(ClusterNode nearNode, GridNearTxPrepareRequest req) {
         IgniteInternalFuture<GridNearTxPrepareResponse> fut;
 
-        if (req.firstClientRequest()) {
+        if (req.firstClientRequest() && req.allowWaitTopologyFuture()) {
             for (;;) {
                 if (waitForExchangeFuture(nearNode, req))
                     return;
@@ -373,62 +373,89 @@ public class IgniteTxHandler {
 
                 top.readLock();
 
-                GridDhtTopologyFuture topFut = top.topologyVersionFuture();
+                if (req.allowWaitTopologyFuture()) {
+                    GridDhtTopologyFuture topFut = top.topologyVersionFuture();
 
-                if (!topFut.isDone()) {
-                    top.readUnlock();
+                    if (!topFut.isDone()) {
+                        top.readUnlock();
 
-                    return null;
+                        return null;
+                    }
                 }
             }
 
             try {
-                if (top != null && needRemap(req.topologyVersion(), top.readyTopologyVersion(), req)) {
-                    if (txPrepareMsgLog.isDebugEnabled()) {
-                        txPrepareMsgLog.debug("Topology version mismatch for near prepare, need remap transaction [" +
-                            "txId=" + req.version() +
-                            ", node=" + nearNode.id() +
-                            ", reqTopVer=" + req.topologyVersion() +
-                            ", locTopVer=" + top.readyTopologyVersion() +
-                            ", req=" + req + ']');
-                    }
+                if (top != null ) {
+                    boolean retry = false;
 
-                    GridNearTxPrepareResponse res = new GridNearTxPrepareResponse(
-                        req.partition(),
-                        req.version(),
-                        req.futureId(),
-                        req.miniId(),
-                        req.version(),
-                        req.version(),
-                        null,
-                        null,
-                        top.lastTopologyChangeVersion(),
-                        req.onePhaseCommit(),
-                        req.deployInfo() != null);
+                    GridDhtTopologyFuture topFut = top.topologyVersionFuture();
 
-                    try {
-                        ctx.io().send(nearNode, res, req.policy());
+                    if (!req.allowWaitTopologyFuture() && !topFut.isDone()) {
+                        retry = true;
 
                         if (txPrepareMsgLog.isDebugEnabled()) {
-                            txPrepareMsgLog.debug("Sent remap response for near prepare [txId=" + req.version() +
-                                ", node=" + nearNode.id() + ']');
-                        }
-                    }
-                    catch (ClusterTopologyCheckedException ignored) {
-                        if (txPrepareMsgLog.isDebugEnabled()) {
-                            txPrepareMsgLog.debug("Failed to send remap response for near prepare, node failed [" +
+                            txPrepareMsgLog.debug("Topology change is in progress, need remap transaction [" +
                                 "txId=" + req.version() +
-                                ", node=" + nearNode.id() + ']');
+                                ", node=" + nearNode.id() +
+                                ", reqTopVer=" + req.topologyVersion() +
+                                ", locTopVer=" + top.readyTopologyVersion() +
+                                ", req=" + req + ']');
                         }
                     }
-                    catch (IgniteCheckedException e) {
-                        U.error(txPrepareMsgLog, "Failed to send remap response for near prepare " +
-                            "[txId=" + req.version() +
-                            ", node=" + nearNode.id() +
-                            ", req=" + req + ']', e);
+
+                    if (!retry && needRemap(req.topologyVersion(), top.readyTopologyVersion(), req)) {
+                        retry = true;
+
+                        if (txPrepareMsgLog.isDebugEnabled()) {
+                            txPrepareMsgLog.debug("Topology version mismatch for near prepare, need remap transaction [" +
+                                "txId=" + req.version() +
+                                ", node=" + nearNode.id() +
+                                ", reqTopVer=" + req.topologyVersion() +
+                                ", locTopVer=" + top.readyTopologyVersion() +
+                                ", req=" + req + ']');
+                        }
                     }
 
-                    return new GridFinishedFuture<>(res);
+                    if (retry) {
+                        GridNearTxPrepareResponse res = new GridNearTxPrepareResponse(
+                            req.partition(),
+                            req.version(),
+                            req.futureId(),
+                            req.miniId(),
+                            req.version(),
+                            req.version(),
+                            null,
+                            null,
+                            top.lastTopologyChangeVersion(),
+                            req.onePhaseCommit(),
+                            req.deployInfo() != null);
+
+                        try {
+                            ctx.io().send(nearNode, res, req.policy());
+
+                            if (txPrepareMsgLog.isDebugEnabled()) {
+                                txPrepareMsgLog.debug("Sent remap response for near prepare [txId=" + req.version() +
+                                    ", node=" + nearNode.id() + ']');
+                            }
+                        }
+                        catch (ClusterTopologyCheckedException ignored) {
+                            if (txPrepareMsgLog.isDebugEnabled()) {
+                                txPrepareMsgLog.debug("Failed to send remap response for near prepare, node failed [" +
+                                    "txId=" + req.version() +
+                                    ", node=" + nearNode.id() + ']');
+                            }
+                        }
+                        catch (IgniteCheckedException e) {
+                            U.error(txPrepareMsgLog, "Failed to send remap response for near prepare " +
+                                "[txId=" + req.version() +
+                                ", node=" + nearNode.id() +
+                                ", req=" + req + ']', e);
+                        }
+
+                        return new GridFinishedFuture<>(res);
+                    }
+
+                    assert topFut.isDone();
                 }
 
                 tx = new GridDhtTxLocal(
