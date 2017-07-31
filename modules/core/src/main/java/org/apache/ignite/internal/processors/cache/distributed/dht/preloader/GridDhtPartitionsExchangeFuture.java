@@ -295,7 +295,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * @return Shared cache context.
      */
-    GridCacheSharedContext sharedContext() {
+    public GridCacheSharedContext sharedContext() {
         return cctx;
     }
 
@@ -593,6 +593,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         else
                             exchange = cctx.kernalContext().clientNode() ? ExchangeType.CLIENT : ExchangeType.ALL;
                     }
+
+                    if (exchId.isLeft())
+                        onLeft();
                 }
                 else {
                     exchange = CU.clientNode(discoEvt.eventNode()) ? onClientNodeEvent(crdNode) :
@@ -887,7 +890,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (discoEvt.type() == EVT_NODE_LEFT || discoEvt.type() == EVT_NODE_FAILED) {
             onLeft();
 
-            warnNoAffinityNodes();
+            exchCtx.events().warnNoAffinityNodes(cctx);
 
             centralizedAff = cctx.affinity().onServerLeft(this, crd);
         }
@@ -1115,65 +1118,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         cctx.mvcc().removeExplicitNodeLocks(exchId.nodeId(), exchId.topologyVersion());
-    }
-
-    /**
-     *
-     */
-    private void warnNoAffinityNodes() {
-        List<String> cachesWithoutNodes = null;
-
-        for (DynamicCacheDescriptor cacheDesc : cctx.cache().cacheDescriptors().values()) {
-            if (discoCache.cacheGroupAffinityNodes(cacheDesc.groupId()).isEmpty()) {
-                if (cachesWithoutNodes == null)
-                    cachesWithoutNodes = new ArrayList<>();
-
-                cachesWithoutNodes.add(cacheDesc.cacheName());
-
-                // Fire event even if there is no client cache started.
-                if (cctx.gridEvents().isRecordable(EventType.EVT_CACHE_NODES_LEFT)) {
-                    Event evt = new CacheEvent(
-                        cacheDesc.cacheName(),
-                        cctx.localNode(),
-                        cctx.localNode(),
-                        "All server nodes have left the cluster.",
-                        EventType.EVT_CACHE_NODES_LEFT,
-                        0,
-                        false,
-                        null,
-                        null,
-                        null,
-                        null,
-                        false,
-                        null,
-                        false,
-                        null,
-                        null,
-                        null
-                    );
-
-                    cctx.gridEvents().record(evt);
-                }
-            }
-        }
-
-        if (cachesWithoutNodes != null) {
-            StringBuilder sb =
-                new StringBuilder("All server nodes for the following caches have left the cluster: ");
-
-            for (int i = 0; i < cachesWithoutNodes.size(); i++) {
-                String cache = cachesWithoutNodes.get(i);
-
-                sb.append('\'').append(cache).append('\'');
-
-                if (i != cachesWithoutNodes.size() - 1)
-                    sb.append(", ");
-            }
-
-            U.quietAndWarn(log, sb.toString());
-
-            U.quietAndWarn(log, "Must have server nodes for caches to operate.");
-        }
     }
 
     /**
@@ -2184,6 +2128,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 assert exchCtx.events().serverJoin() || exchCtx.events().serverLeft();
 
+                exchCtx.events().processEvents(this);
+
                 if (exchCtx.events().serverLeft())
                     idealAffDiff = cctx.affinity().mergeExchangesInitAffinityOnServerLeft(this);
                 else
@@ -2673,6 +2619,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         "msgVer=" + resTopVer +
                         ", locVer=" + exchCtx.events().topologyVersion() + ']';
                 }
+
+                exchCtx.events().processEvents(this);
 
                 if (localJoinExchange())
                     cctx.affinity().onLocalJoin(this, msg, resTopVer);
