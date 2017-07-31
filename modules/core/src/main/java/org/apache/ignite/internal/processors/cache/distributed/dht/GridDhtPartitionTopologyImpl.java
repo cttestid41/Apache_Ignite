@@ -456,7 +456,10 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     ExchangeDiscoveryEvents evts = exchFut.context().events();
 
                     if (affReady) {
-                        assert grp.affinity().lastVersion().equals(evts.topologyVersion());
+                        assert grp.affinity().lastVersion().equals(evts.topologyVersion()) : "Invalid affinity version [" +
+                            "grp=" + grp.cacheOrGroupName() +
+                            ", affVer=" + grp.affinity().lastVersion() +
+                            ", evtsVer=" + evts.topologyVersion() + ']';
 
                         lastTopChangeVer = readyTopVer = evts.topologyVersion();
                     }
