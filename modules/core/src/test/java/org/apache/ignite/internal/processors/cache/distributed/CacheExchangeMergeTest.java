@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadLocalRandom;
@@ -58,6 +59,9 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
+import org.apache.ignite.transactions.Transaction;
+import org.apache.ignite.transactions.TransactionConcurrency;
+import org.apache.ignite.transactions.TransactionIsolation;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
@@ -186,16 +190,16 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
             final AtomicInteger idx = new AtomicInteger(1);
 
-                IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+            IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
                 @Override public Void call() throws Exception {
                     if (withClients)
                         client.set(ThreadLocalRandom.current().nextBoolean());
 
-                    Ignite node = startGrid(idx.getAndIncrement());
+                    int nodeIdx = idx.getAndIncrement();
 
-                    // TODO 5578 non-intersecting keys.
-//                    if (getTestIgniteInstanceName(0).equals(node.name()))
-//                        checkNodeCaches(node);
+                    Ignite node = startGrid(nodeIdx);
+
+                    checkNodeCaches(node, nodeIdx * 1000, 1000);
 
                     return null;
                 }
@@ -205,7 +209,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
             checkCaches();
 
-            // TODO: stop by one, check caches - in all tests.
+            // TODO 5578: stop by one, check caches - in all tests.
             stopAllGrids();
         }
     }
@@ -794,6 +798,29 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
     /**
      * @param node Node.
+     * @param startKey Start key.
+     * @param keyRange Keys range.
+     */
+    private void checkNodeCaches(Ignite node, int startKey, int keyRange) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        for (String cacheName : cacheNames) {
+            IgniteCache<Object, Object> cache = node.cache(cacheName);
+
+            for (int i = 0; i < 10; i++) {
+                Integer key = rnd.nextInt(keyRange) + startKey;
+
+                cache.put(key, i);
+
+                Object val = cache.get(key);
+
+                assertEquals(i, val);
+            }
+        }
+    }
+
+    /**
+     * @param node Node.
      */
     private void checkNodeCaches(Ignite node) {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
@@ -822,7 +849,65 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                 assertEquals(err, i, val);
             }
+
+            for (int i = 0; i < 10; i++) {
+                Map<Integer, Integer> map = new TreeMap<>();
+
+                for (int j = 0; j < 10; j++) {
+                    Integer key = rnd.nextInt(100_000);
+
+                    map.put(key, i);
+                }
+
+                cache.putAll(map);
+
+                Map<Object, Object> res = cache.getAll(map.keySet());
+
+                for (Map.Entry<Integer, Integer> e : map.entrySet())
+                    assertEquals(e.getValue(), res.get(e.getKey()));
+            }
+
+            if (cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL) {
+                for (TransactionConcurrency concurrency : TransactionConcurrency.values()) {
+                    for (TransactionIsolation isolation : TransactionIsolation.values())
+                        checkNodeCaches(node, cache, concurrency, isolation);
+                }
+            }
         }
+    }
+
+    /**
+     * @param node Node.
+     * @param cache Cache.
+     * @param concurrency Transaction concurrency.
+     * @param isolation Transaction isolation.
+     */
+    private void checkNodeCaches(Ignite node,
+        IgniteCache<Object, Object> cache,
+        TransactionConcurrency concurrency,
+        TransactionIsolation isolation) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        Map<Object, Object> map = new HashMap<>();
+
+        try (Transaction tx = node.transactions().txStart(concurrency, isolation)) {
+            for (int i = 0; i < 10; i++) {
+                Integer key = rnd.nextInt(100_000);
+
+                cache.put(key, i);
+
+                Object val = cache.get(key);
+
+                assertEquals(i, val);
+
+                map.put(key, val);
+            }
+
+            tx.commit();
+        }
+
+        for (Map.Entry<Object, Object> e : map.entrySet())
+            assertEquals(e.getValue(), cache.get(e.getKey()));
     }
 
     /**

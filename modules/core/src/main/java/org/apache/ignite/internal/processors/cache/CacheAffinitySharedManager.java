@@ -1319,14 +1319,18 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
         forAllCacheGroups(false, new IgniteInClosureX<GridAffinityAssignmentCache>() {
             @Override public void applyx(GridAffinityAssignmentCache aff) throws IgniteCheckedException {
+                ExchangeDiscoveryEvents evts = fut.context().events();
+
+                CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
+
+                assert grp != null;
+
                 if (affReq.contains(aff.groupId())) {
                     assert AffinityTopologyVersion.NONE.equals(aff.lastVersion());
 
                     CacheGroupAffinityMessage affMsg = joinedNodeAff.get(aff.groupId());
 
                     assert affMsg != null;
-
-                    ExchangeDiscoveryEvents evts = fut.context().events();
 
                     List<List<ClusterNode>> assignments = affMsg.createAssignments(nodesByOrder, evts.discoveryCache());
 
@@ -1339,11 +1343,14 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     aff.initialize(evts.topologyVersion(), assignments);
 
-                    CacheGroupContext grp = cctx.cache().cacheGroup(aff.groupId());
-
-                    assert grp != null;
-
                     grp.topology().initPartitionsWhenAffinityReady(resTopVer, fut);
+                }
+                else if (fut.cacheGroupAddedOnExchange(aff.groupId(), grp.receivedFrom())) {
+                    List<List<ClusterNode>> assignment = aff.calculate(evts.topologyVersion(),
+                        evts.lastEvent(),
+                        evts.discoveryCache());
+
+                    aff.initialize(evts.topologyVersion(), assignment);
                 }
             }
         });
@@ -1490,12 +1497,14 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             if (grp.isLocal())
                 continue;
 
-            if (!fut.context().mergeExchanges() && fut.cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom())) {
-                List<List<ClusterNode>> assignment = grp.affinity().calculate(topVer,
-                    fut.discoveryEvent(),
-                    fut.discoCache());
+            if (fut.cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom())) {
+                if (!fut.context().mergeExchanges()) {
+                    List<List<ClusterNode>> assignment = grp.affinity().calculate(topVer,
+                            fut.discoveryEvent(),
+                            fut.discoCache());
 
-                grp.affinity().initialize(topVer, assignment);
+                    grp.affinity().initialize(topVer, assignment);
+                }
             }
             else {
                 if (fut.context().fetchAffinityOnJoin()) {

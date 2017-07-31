@@ -327,7 +327,13 @@ public class CachePartitionStateTest extends GridCommonAbstractTest {
                 for (int p = 0; p < aff.partitions(); p++) {
                     if (nodeParts.contains(p)) {
                         assertNotNull(partsMap);
-                        assertEquals(expState, partsMap.get(p));
+
+                        GridDhtPartitionState state = partsMap.get(p);
+
+                        assertEquals("Unexpected state [checkNode=" + clusterNode.id() +
+                            ", node=" + node.name() +
+                            ", state=" + state + ']',
+                            expState, partsMap.get(p));
                     }
                     else {
                         if (partsMap != null) {

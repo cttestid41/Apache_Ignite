@@ -1588,7 +1588,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             if (log.isDebugEnabled())
                 log.debug("Partition map after single update: " + fullMapString());
 
-            if (changed)
+            if (changed && exchId == null)
                 ctx.exchange().scheduleResendPartitions();
 
             return changed;
