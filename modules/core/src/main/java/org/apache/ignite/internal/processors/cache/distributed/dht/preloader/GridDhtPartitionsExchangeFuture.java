@@ -1534,8 +1534,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         boolean wait;
 
         synchronized (this) {
-            assert !isDone() && !initFut.isDone() : this;
-            assert mergedWith == null && state == null : this;
+            assert (!isDone() && !initFut.isDone()) || cctx.kernalContext().isStopping() : this;
+            assert (mergedWith == null && state == null) || cctx.kernalContext().isStopping()  : this;
 
             state = ExchangeLocalState.MERGED;
 
