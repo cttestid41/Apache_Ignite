@@ -24,6 +24,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -91,6 +94,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /** */
     private IgniteClosure<String, Boolean> clientC;
 
+    /** */
+    private static ExecutorService executor;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
@@ -127,6 +133,21 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }
 
         return cfg;
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void beforeTestsStarted() throws Exception {
+        super.beforeTestsStarted();
+
+        executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void afterTestsStopped() throws Exception {
+        if (executor != null)
+            executor.shutdown();
+
+        super.afterTestsStopped();
     }
 
     /** {@inheritDoc} */
@@ -805,6 +826,11 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
         for (String cacheName : cacheNames) {
+            String err = "Invalid value [node=" + node.name() +
+                ", client=" + node.configuration().isClientMode() +
+                ", order=" + node.cluster().localNode().order() +
+                ", cache=" + cacheName + ']';
+
             IgniteCache<Object, Object> cache = node.cache(cacheName);
 
             for (int i = 0; i < 10; i++) {
@@ -814,66 +840,76 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                 Object val = cache.get(key);
 
-                assertEquals(i, val);
+                assertEquals(err, i, val);
             }
         }
     }
 
     /**
      * @param node Node.
+     * @throws Exception If failed.
      */
-    private void checkNodeCaches(Ignite node) {
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+    private void checkNodeCaches(final Ignite node) throws Exception {
+        log.info("Check node caches [node=" + node.name() + ']');
 
-        for (String cacheName : cacheNames) {
-            IgniteCache<Object, Object> cache = node.cache(cacheName);
+        List<Future<?>> futs = new ArrayList<>();
 
-            // TODO: multithreaded, putAll and transactions.
+        for (final String cacheName : cacheNames) {
+            final IgniteCache<Object, Object> cache = node.cache(cacheName);
 
-            assertNotNull("No cache [node=" + node.name() +
-                ", client=" + node.configuration().isClientMode() +
-                ", order=" + node.cluster().localNode().order() +
-                ", cache=" + cacheName + ']', cache);
+            futs.add(executor.submit(new Runnable() {
+                @Override public void run() {
+                    ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
-            String err = "Invalid value [node=" + node.name() +
-                ", client=" + node.configuration().isClientMode() +
-                ", order=" + node.cluster().localNode().order() +
-                ", cache=" + cacheName + ']';
+                    assertNotNull("No cache [node=" + node.name() +
+                            ", client=" + node.configuration().isClientMode() +
+                            ", order=" + node.cluster().localNode().order() +
+                            ", cache=" + cacheName + ']', cache);
 
-            for (int i = 0; i < 10; i++) {
-                Integer key = rnd.nextInt(100_000);
+                    String err = "Invalid value [node=" + node.name() +
+                            ", client=" + node.configuration().isClientMode() +
+                            ", order=" + node.cluster().localNode().order() +
+                            ", cache=" + cacheName + ']';
 
-                cache.put(key, i);
+                    for (int i = 0; i < 5; i++) {
+                        Integer key = rnd.nextInt(100_000);
 
-                Object val = cache.get(key);
+                        cache.put(key, i);
 
-                assertEquals(err, i, val);
-            }
+                        Object val = cache.get(key);
 
-            for (int i = 0; i < 10; i++) {
-                Map<Integer, Integer> map = new TreeMap<>();
+                        assertEquals(err, i, val);
+                    }
 
-                for (int j = 0; j < 10; j++) {
-                    Integer key = rnd.nextInt(100_000);
+                    for (int i = 0; i < 5; i++) {
+                        Map<Integer, Integer> map = new TreeMap<>();
 
-                    map.put(key, i);
+                        for (int j = 0; j < 10; j++) {
+                            Integer key = rnd.nextInt(100_000);
+
+                            map.put(key, i);
+                        }
+
+                        cache.putAll(map);
+
+                        Map<Object, Object> res = cache.getAll(map.keySet());
+
+                        for (Map.Entry<Integer, Integer> e : map.entrySet())
+                            assertEquals(e.getValue(), res.get(e.getKey()));
+                    }
+
+                    if (cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL) {
+                        for (TransactionConcurrency concurrency : TransactionConcurrency.values()) {
+                            for (TransactionIsolation isolation : TransactionIsolation.values())
+                                checkNodeCaches(node, cache, concurrency, isolation);
+                        }
+                    }
                 }
-
-                cache.putAll(map);
-
-                Map<Object, Object> res = cache.getAll(map.keySet());
-
-                for (Map.Entry<Integer, Integer> e : map.entrySet())
-                    assertEquals(e.getValue(), res.get(e.getKey()));
-            }
-
-            if (cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL) {
-                for (TransactionConcurrency concurrency : TransactionConcurrency.values()) {
-                    for (TransactionIsolation isolation : TransactionIsolation.values())
-                        checkNodeCaches(node, cache, concurrency, isolation);
-                }
-            }
+            }));
         }
+
+        for (Future<?> fut : futs)
+            fut.get();
     }
 
     /**
@@ -891,7 +927,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         Map<Object, Object> map = new HashMap<>();
 
         try (Transaction tx = node.transactions().txStart(concurrency, isolation)) {
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 5; i++) {
                 Integer key = rnd.nextInt(100_000);
 
                 cache.put(key, i);
