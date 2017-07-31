@@ -1106,7 +1106,7 @@ public class IgniteClusterActivateDeactivateTest extends GridCommonAbstractTest 
         U.sleep(500);
 
         // Stop coordinator.
-        stopGrid(0);
+        stopGrid(getTestIgniteInstanceName(0), true, false);
 
         stopGrid(getTestIgniteInstanceName(1), true, false);
         stopGrid(getTestIgniteInstanceName(4), true, false);

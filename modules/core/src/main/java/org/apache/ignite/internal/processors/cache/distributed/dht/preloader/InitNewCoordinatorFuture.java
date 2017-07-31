@@ -59,7 +59,7 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
     private GridFutureAdapter restoreStateFut;
 
     /** */
-    private IgniteLogger log;
+    private final IgniteLogger log;
 
     /** */
     private AffinityTopologyVersion initTopVer;
@@ -76,6 +76,13 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
     }
 
     /**
+     * @param cctx Context.
+     */
+    public InitNewCoordinatorFuture(GridCacheSharedContext cctx) {
+        this.log = cctx.logger(getClass());
+    }
+
+    /**
      * @param exchFut Current future.
      * @throws IgniteCheckedException If failed.
      */
@@ -83,8 +90,6 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
         initTopVer = exchFut.initialVersion();
 
         GridCacheSharedContext cctx = exchFut.sharedContext();
-
-        log = cctx.logger(getClass());
 
         boolean newAff = exchFut.localJoinExchange();
 
@@ -108,7 +113,7 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
                 }
             }
 
-            if (!curDiscoCache.version().equals(discoCache.version())) {
+            if (exchFut.context().mergeExchanges() && !curDiscoCache.version().equals(discoCache.version())) {
                 for (ClusterNode node : curDiscoCache.allNodes()) {
                     if (discoCache.node(node.id()) == null) {
                         awaited.add(node.id());
@@ -135,7 +140,6 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
         }
 
         if (!nodes.isEmpty()) {
-            // TODO IGNITE-5578: merged nodes.
             GridDhtPartitionsSingleRequest req = GridDhtPartitionsSingleRequest.restoreStateRequest(exchFut.exchangeId(),
                 exchFut.exchangeId());
 

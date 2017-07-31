@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,10 +40,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
-import org.apache.ignite.events.CacheEvent;
 import org.apache.ignite.events.DiscoveryEvent;
-import org.apache.ignite.events.Event;
-import org.apache.ignite.events.EventType;
 import org.apache.ignite.internal.IgniteClientDisconnectedCheckedException;
 import org.apache.ignite.internal.IgniteDiagnosticAware;
 import org.apache.ignite.internal.IgniteDiagnosticPrepareContext;
@@ -52,6 +50,7 @@ import org.apache.ignite.internal.IgniteInterruptedCheckedException;
 import org.apache.ignite.internal.IgniteNeedReconnectException;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.events.DiscoveryCustomEvent;
+import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.managers.discovery.DiscoveryCustomMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
@@ -988,7 +987,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         if (crd.isLocal()) {
             if (remaining.isEmpty())
-                onAllReceived();
+                onAllReceived(null);
         }
         else
             sendPartitions(crd);
@@ -1625,7 +1624,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
 
         if (done)
-            finishExchangeOnCoordinator();
+            finishExchangeOnCoordinator(null);
     }
 
     /**
@@ -1845,7 +1844,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (!awaitSingleMapUpdates())
                 return;
 
-            onAllReceived();
+            onAllReceived(null);
         }
     }
 
@@ -2081,7 +2080,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      *
      */
-    private void onAllReceived() {
+    private void onAllReceived(@Nullable Collection<ClusterNode> sndResNodes) {
         try {
             assert crd.isLocal();
 
@@ -2103,7 +2102,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     return;
             }
 
-            finishExchangeOnCoordinator();
+            finishExchangeOnCoordinator(sndResNodes);
         }
         catch (IgniteCheckedException e) {
             if (reconnectOnError(e))
@@ -2116,7 +2115,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      *
      */
-    private void finishExchangeOnCoordinator() {
+    private void finishExchangeOnCoordinator(@Nullable Collection<ClusterNode> sndResNodes) {
         try {
             AffinityTopologyVersion resTopVer = exchCtx.events().topologyVersion();
 
@@ -2277,14 +2276,16 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     onAffinityInitialized(fut);
             }
             else {
-                List<ClusterNode> nodes;
+                Set<ClusterNode> nodes;
 
                 Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs0;
 
                 synchronized (this) {
                     srvNodes.remove(cctx.localNode());
 
-                    nodes = new ArrayList<>(srvNodes);
+                    nodes = U.newHashSet(srvNodes.size());
+
+                    nodes.addAll(srvNodes);
 
                     mergedJoinExchMsgs0 = mergedJoinExchMsgs;
 
@@ -2298,6 +2299,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             }
                         }
                     }
+
+                    if (!F.isEmpty(sndResNodes))
+                        nodes.addAll(sndResNodes);
                 }
 
                 IgniteCheckedException err = null;
@@ -2491,13 +2495,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         if (!node.equals(crd)) {
                             if (node.order() > crd.order()) {
                                 log.info("Received restore state request, change coordinator [oldCrd=" + crd.id() +
-                                    "newCrd=" + node.id() + ']');
+                                    ", newCrd=" + node.id() + ']');
 
                                 crd = node; // Do not allow to process FullMessage from old coordinator.
                             }
                             else {
                                 log.info("Ignore restore state request, coordinator changed [oldCrd=" + crd.id() +
-                                    "newCrd=" + node.id() + ']');
+                                    ", newCrd=" + node.id() + ']');
 
                                 return;
                             }
@@ -2525,6 +2529,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     res.cacheGroupsAffinityRequest(exchCtx.groupsAffinityRequestOnJoin());
 
                 res.restoreState(true);
+
+                log.info("Send restore state response [node=" + node.id() +
+                    ", exchVer=" + msg.restoreExchangeId().topologyVersion() +
+                    ", hasState=" + (finishState0 != null) + ']');
 
                 res.finishMessage(finishState0 != null ? finishState0.msg : null);
 
@@ -2907,7 +2915,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                                     if (crdChanged && crd.isLocal()) {
                                         state = ExchangeLocalState.BECOME_CRD;
 
-                                        newCrdFut = new InitNewCoordinatorFuture();
+                                        newCrdFut = new InitNewCoordinatorFuture(cctx);
                                     }
 
                                     break;
@@ -2938,13 +2946,19 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                                 assert newCrdFut != null;
 
-                                newCrdFut.init(GridDhtPartitionsExchangeFuture.this);
+                                cctx.kernalContext().closure().callLocal(new Callable<Void>() {
+                                    @Override public Void call() throws Exception {
+                                        newCrdFut.init(GridDhtPartitionsExchangeFuture.this);
 
-                                newCrdFut.listen(new CI1<IgniteInternalFuture>() {
-                                    @Override public void apply(IgniteInternalFuture fut) {
-                                        onBecomeCoordinator((InitNewCoordinatorFuture)fut);
+                                        newCrdFut.listen(new CI1<IgniteInternalFuture>() {
+                                            @Override public void apply(IgniteInternalFuture fut) {
+                                                onBecomeCoordinator((InitNewCoordinatorFuture)fut);
+                                            }
+                                        });
+
+                                        return null;
                                     }
-                                });
+                                }, GridIoPolicy.SYSTEM_POOL);
 
                                 return;
                             }
@@ -2952,7 +2966,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                             if (allReceived) {
                                 awaitSingleMapUpdates();
 
-                                onAllReceived();
+                                onAllReceived(null);
                             }
                         }
                         else {
@@ -3127,7 +3141,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (allRcvd) {
             awaitSingleMapUpdates();
 
-            onAllReceived();
+            onAllReceived(newCrdFut.messages().keySet());
         }
     }
 
