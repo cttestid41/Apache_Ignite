@@ -1490,7 +1490,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             if (grp.isLocal())
                 continue;
 
-            if (fut.cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom())) {
+            if (!fut.context().mergeExchanges() && fut.cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom())) {
                 List<List<ClusterNode>> assignment = grp.affinity().calculate(topVer,
                     fut.discoveryEvent(),
                     fut.discoCache());
@@ -1807,7 +1807,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                 boolean latePrimary = grp.rebalanceEnabled();
 
                 initAffinityOnNodeJoin(evts,
-                    evts.groupAddedOnExchange(grp.groupId(), grp.receivedFrom()),
+                    evts.nodeJoined(grp.receivedFrom()),
                     grp.affinity(),
                     null,
                     latePrimary,
@@ -1825,7 +1825,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     boolean latePrimary = cache.rebalanceEnabled;
 
-                    boolean grpAdded = evts.groupAddedOnExchange(desc.groupId(), desc.receivedFrom());
+                    boolean grpAdded = evts.nodeJoined(desc.receivedFrom());
 
                     initAffinityOnNodeJoin(evts,
                         grpAdded,

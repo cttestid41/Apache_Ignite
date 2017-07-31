@@ -80,6 +80,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /** */
     private static String[] cacheNames = {"c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"};
 
+    /** */
+    private boolean cfgCache = true;
+
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String igniteInstanceName) throws Exception {
         IgniteConfiguration cfg = super.getConfiguration(igniteInstanceName);
@@ -97,18 +100,20 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             client.set(null);
         }
 
-        cfg.setCacheConfiguration(
-            cacheConfiguration("c1", ATOMIC, PARTITIONED, 0),
-            cacheConfiguration("c2", ATOMIC, PARTITIONED, 1),
-            cacheConfiguration("c3", ATOMIC, PARTITIONED, 2),
-            cacheConfiguration("c4", ATOMIC, PARTITIONED, 10),
-            cacheConfiguration("c5", ATOMIC, REPLICATED, 0),
-            cacheConfiguration("c6", TRANSACTIONAL, PARTITIONED, 0),
-            cacheConfiguration("c7", TRANSACTIONAL, PARTITIONED, 1),
-            cacheConfiguration("c8", TRANSACTIONAL, PARTITIONED, 2),
-            cacheConfiguration("c9", TRANSACTIONAL, PARTITIONED, 10),
-            cacheConfiguration("c10", TRANSACTIONAL, REPLICATED, 0)
-        );
+        if (cfgCache) {
+            cfg.setCacheConfiguration(
+                cacheConfiguration("c1", ATOMIC, PARTITIONED, 0),
+                cacheConfiguration("c2", ATOMIC, PARTITIONED, 1),
+                cacheConfiguration("c3", ATOMIC, PARTITIONED, 2),
+                cacheConfiguration("c4", ATOMIC, PARTITIONED, 10),
+                cacheConfiguration("c5", ATOMIC, REPLICATED, 0),
+                cacheConfiguration("c6", TRANSACTIONAL, PARTITIONED, 0),
+                cacheConfiguration("c7", TRANSACTIONAL, PARTITIONED, 1),
+                cacheConfiguration("c8", TRANSACTIONAL, PARTITIONED, 2),
+                cacheConfiguration("c9", TRANSACTIONAL, PARTITIONED, 10),
+                cacheConfiguration("c10", TRANSACTIONAL, REPLICATED, 0)
+            );
+        }
 
         return cfg;
     }
@@ -228,6 +233,40 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         fut1.get();
         fut2.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStartCacheOnJoinAndJoinMerge1() throws Exception {
+        startCacheOnJoinAndJoinMerge1(2);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStartCacheOnJoinAndJoinMerge1_1() throws Exception {
+        startCacheOnJoinAndJoinMerge1(4);
+    }
+
+    /**
+     * @param srvs Number of servers to start.
+     * @throws Exception If failed.
+     */
+    private void startCacheOnJoinAndJoinMerge1(int srvs) throws Exception {
+        cfgCache = false;
+
+        final IgniteEx srv0 = startGrid(0);
+
+        mergeExchangeWaitVersion(srv0, srvs + 1);
+
+        cfgCache = true;
+
+        IgniteInternalFuture fut = startGrids(srv0, 1, srvs);
+
+        fut.get();
 
         checkCaches();
     }

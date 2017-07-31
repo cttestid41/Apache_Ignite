@@ -285,7 +285,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         log = cctx.logger(getClass());
         exchLog = cctx.logger(EXCHANGE_LOG);
 
-        initFut = new GridFutureAdapter<>();
+        initFut = new GridFutureAdapter<Boolean>() {
+            @Nullable @Override public IgniteLogger logger() {
+                return log;
+            }
+        };
 
         if (log.isDebugEnabled())
             log.debug("Creating exchange future [localNode=" + cctx.localNodeId() + ", fut=" + this + ']');
@@ -367,7 +371,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return {@code True} if cache was added during this exchange.
      */
     public boolean cacheAddedOnExchange(int cacheId, UUID rcvdFrom) {
-        return dynamicCacheStarted(cacheId) || (exchId.isJoined() && exchId.nodeId().equals(rcvdFrom));
+        return dynamicCacheStarted(cacheId) || exchCtx.events().nodeJoined(rcvdFrom);
     }
 
     /**
@@ -376,8 +380,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return {@code True} if cache group was added during this exchange.
      */
     public boolean cacheGroupAddedOnExchange(int grpId, UUID rcvdFrom) {
-        return dynamicCacheGroupStarted(grpId) ||
-            (exchId.isJoined() && exchId.nodeId().equals(rcvdFrom));
+        return dynamicCacheGroupStarted(grpId) || exchCtx.events().nodeJoined(rcvdFrom);
     }
 
     /**
@@ -2952,7 +2955,15 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                                         newCrdFut.listen(new CI1<IgniteInternalFuture>() {
                                             @Override public void apply(IgniteInternalFuture fut) {
-                                                onBecomeCoordinator((InitNewCoordinatorFuture)fut);
+                                                if (isDone() || !enterBusy())
+                                                    return;
+
+                                                try {
+                                                    onBecomeCoordinator((InitNewCoordinatorFuture) fut);
+                                                }
+                                                finally {
+                                                    leaveBusy();
+                                                }
                                             }
                                         });
 

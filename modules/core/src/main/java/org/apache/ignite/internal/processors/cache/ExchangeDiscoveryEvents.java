@@ -85,9 +85,9 @@ public class ExchangeDiscoveryEvents {
             warnNoAffinityNodes(fut.sharedContext());
     }
 
-    boolean groupAddedOnExchange(int grpId, UUID rcvdFrom) {
+    public boolean nodeJoined(UUID nodeId) {
         for (DiscoveryEvent evt : evts) {
-            if (evt.type() == EVT_NODE_JOINED && rcvdFrom.equals(evt.eventNode().id()))
+            if (evt.type() == EVT_NODE_JOINED && nodeId.equals(evt.eventNode().id()))
                 return true;
         }
 
