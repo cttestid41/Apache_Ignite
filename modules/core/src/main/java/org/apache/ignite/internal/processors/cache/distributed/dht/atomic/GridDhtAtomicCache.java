@@ -1794,7 +1794,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                     GridDhtTopologyFuture topFut = top.topologyVersionFuture();
 
-                    if (!topFut.isDone())
+                    if (!req.topologyLocked() && !topFut.isDone())
                         return false; // Will wait at the beginning of next updateAllAsyncInternal0 call.
 
                     // Do not check topology version if topology was locked on near node by
@@ -1889,12 +1889,15 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
     private boolean waitForTopologyFuture(final ClusterNode node,
         final GridNearAtomicAbstractUpdateRequest req,
         final UpdateReplyClosure completionCb) {
+        if (req.topologyLocked())
+            return false;
+
         GridDhtTopologyFuture topFut = ctx.group().topology().topologyVersionFuture();
 
         if (!topFut.isDone()) {
             Thread curThread = Thread.currentThread();
 
-            if (!req.topologyLocked() && (curThread instanceof IgniteThread)) {
+            if (curThread instanceof IgniteThread) {
                 final IgniteThread thread = (IgniteThread)curThread;
 
                 if (thread.hasStripeOrPolicy()) {
