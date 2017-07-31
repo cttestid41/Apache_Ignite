@@ -479,6 +479,21 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * @param newCrd {@code True} if node become coordinator on this exchange.
+     * @throws IgniteCheckedException If failed.
+     */
+    private void initCoordinatorCaches(boolean newCrd) throws IgniteCheckedException {
+        if (newCrd) {
+            IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(this, false);
+
+            if (fut != null)
+                fut.get();
+
+            cctx.exchange().coordinatorInitialized();
+        }
+    }
+
+    /**
      * Starts activity.
      *
      * @param newCrd {@code True} if node become coordinator on this exchange.
@@ -551,6 +566,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                     exchange = onAffinityChangeRequest(crdNode);
                 }
+
+                initCoordinatorCaches(newCrd);
             }
             else {
                 if (discoEvt.type() == EVT_NODE_JOINED) {
@@ -565,14 +582,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         initCachesOnLocalJoin();
                 }
 
-                if (newCrd) {
-                    IgniteInternalFuture<?> fut = cctx.affinity().initCoordinatorCaches(this, false);
-
-                    if (fut != null)
-                        fut.get();
-
-                    cctx.exchange().coordinatorInitialized();
-                }
+                initCoordinatorCaches(newCrd);
 
                 if (exchCtx.mergeExchanges()) {
                     if (localJoinExchange()) {
@@ -3281,6 +3291,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         /**
          * @param crdId Coordinator node.
+         * @param resTopVer Result version.
+         * @param msg Result message.
          */
         FinishState(UUID crdId, AffinityTopologyVersion resTopVer, GridDhtPartitionsFullMessage msg) {
             this.crdId = crdId;
