@@ -2499,7 +2499,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 case CLIENT:
                 case SRV: {
                     if (!cctx.discovery().alive(node)) {
-                        log.info("Ignore restore state request, node is not alive [node=" + node.id() + ']');
+                        log.info("Ignore partitions request, node is not alive [node=" + node.id() + ']');
 
                         return;
                     }
@@ -2507,7 +2507,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (msg.restoreState()) {
                         if (!node.equals(crd)) {
                             if (node.order() > crd.order()) {
-                                log.info("Received restore state request, change coordinator [oldCrd=" + crd.id() +
+                                log.info("Received partitions request, change coordinator [oldCrd=" + crd.id() +
                                     ", newCrd=" + node.id() + ']');
 
                                 crd = node; // Do not allow to process FullMessage from old coordinator.

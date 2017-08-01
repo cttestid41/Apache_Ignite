@@ -135,10 +135,10 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
                             joinedNodes.put(node.id(), exchId);
                         }
                     }
-
-                    if (joinedNodes == null)
-                        joinedNodes = Collections.emptyMap();
                 }
+
+                if (joinedNodes == null)
+                    joinedNodes = Collections.emptyMap();
 
                 if (!awaited.isEmpty()) {
                     restoreStateFut = new GridFutureAdapter();
@@ -146,6 +146,9 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
                     add(restoreStateFut);
                 }
             }
+
+            log.info("Try restore exchange result [allNodes=" + awaited +
+                ", joined=" + joinedNodes.keySet() +  ']');
 
             if (!nodes.isEmpty()) {
                 GridDhtPartitionsSingleRequest req = GridDhtPartitionsSingleRequest.restoreStateRequest(exchFut.exchangeId(),
