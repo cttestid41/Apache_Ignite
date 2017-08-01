@@ -974,14 +974,17 @@ public class IgniteTxHandler {
 
             U.error(log, "Failed completing transaction [commit=" + req.commit() + ", tx=" + tx + ']', e);
 
-            IgniteInternalFuture<IgniteInternalTx> res;
+            IgniteInternalFuture<IgniteInternalTx> res = null;
 
-            IgniteInternalFuture<IgniteInternalTx> rollbackFut = tx.rollbackDhtLocalAsync();
+            try {
+                res = tx.rollbackDhtLocalAsync();
 
-            // Only for error logging.
-            rollbackFut.listen(CU.errorLogger(log));
-
-            res = rollbackFut;
+                // Only for error logging.
+                res.listen(CU.errorLogger(log));
+            }
+            catch (Throwable e1) {
+                e.addSuppressed(e1);
+            }
 
             if (e instanceof Error)
                 throw (Error)e;
@@ -1017,7 +1020,12 @@ public class IgniteTxHandler {
                 throw e;
 
             if (tx != null)
-                return tx.rollbackNearTxLocalAsync();
+                try {
+                    return tx.rollbackNearTxLocalAsync();
+                }
+                catch (Throwable e1) {
+                    e.addSuppressed(e1);
+                }
 
             return new GridFinishedFuture<>(e);
         }
@@ -1111,7 +1119,12 @@ public class IgniteTxHandler {
                 U.error(log, "Failed to process prepare request: " + req, e);
 
             if (nearTx != null)
-                nearTx.rollbackRemoteTx();
+                try {
+                    nearTx.rollbackRemoteTx();
+                }
+                catch (Throwable e1) {
+                    e.addSuppressed(e1);
+                }
 
             res = new GridDhtTxPrepareResponse(
                 req.partition(),
@@ -1372,7 +1385,13 @@ public class IgniteTxHandler {
             tx.invalidate(true);
             tx.systemInvalidate(true);
 
-            tx.rollbackRemoteTx();
+            try {
+                tx.rollbackRemoteTx();
+            }
+            catch (Throwable e1) {
+                e.addSuppressed(e1);
+                U.error(log, "Failed to automatically rollback transaction: " + tx, e1);
+            }
 
             if (e instanceof Error)
                 throw (Error)e;
@@ -1418,10 +1437,20 @@ public class IgniteTxHandler {
             }
 
             if (nearTx != null)
-                nearTx.rollbackRemoteTx();
+                try {
+                    nearTx.rollbackRemoteTx();
+                }
+                catch (Throwable e1) {
+                    e.addSuppressed(e1);
+                }
 
             if (dhtTx != null)
-                dhtTx.rollbackRemoteTx();
+                try {
+                    dhtTx.rollbackRemoteTx();
+                }
+                catch (Throwable e1) {
+                    e.addSuppressed(e1);
+                }
         }
     }
 
