@@ -1900,7 +1900,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             if (curThread instanceof IgniteThread) {
                 final IgniteThread thread = (IgniteThread)curThread;
 
-                if (thread.hasStripeOrPolicy()) {
+                if (thread.cachePoolThread()) {
                     topFut.listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
                         @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                             ctx.closures().runLocalWithThreadPolicy(thread, new Runnable() {

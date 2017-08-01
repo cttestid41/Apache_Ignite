@@ -125,8 +125,13 @@ public class IgniteThread extends Thread {
         return stripe;
     }
 
-    public boolean hasStripeOrPolicy() {
-        return stripe >= 0 || plc != GridIoPolicy.UNDEFINED;
+    /**
+     * @return {@code True} if thread belongs to pool processing cache operations.
+     */
+    public boolean cachePoolThread() {
+        return stripe >= 0 ||
+            plc == GridIoPolicy.SYSTEM_POOL ||
+            plc == GridIoPolicy.UTILITY_CACHE_POOL;
     }
 
     /**

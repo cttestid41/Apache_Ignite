@@ -573,7 +573,7 @@ public class IgniteTxHandler {
             if (curThread instanceof IgniteThread) {
                 final IgniteThread thread = (IgniteThread)curThread;
 
-                if (thread.hasStripeOrPolicy()) {
+                if (thread.cachePoolThread()) {
                     topFut.listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
                         @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                             ctx.kernalContext().closure().runLocalWithThreadPolicy(thread, new Runnable() {
