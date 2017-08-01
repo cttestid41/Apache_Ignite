@@ -1570,6 +1570,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         return wait;
     }
 
+    /**
+     * @param fut Current future.
+     * @return Pending join request if any.
+     */
     @Nullable public GridDhtPartitionsSingleMessage mergeJoinExchangeOnDone(GridDhtPartitionsExchangeFuture fut) {
         synchronized (this) {
             assert !isDone();
