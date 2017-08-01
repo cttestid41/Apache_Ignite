@@ -735,7 +735,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 boolean updateTop = exchId.topologyVersion().equals(grp.localStartVersion());
 
                 if (updateTop && clientTop != null) {
-                    top.update(initialVersion(),
+                    top.update(null,
                         clientTop.partitionMap(true),
                         clientTop.updateCounters(false),
                         Collections.<Integer>emptySet(),
