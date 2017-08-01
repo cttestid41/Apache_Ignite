@@ -1343,6 +1343,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /** {@inheritDoc} */
+    @Override public boolean isDone() {
+        return done.get();
+    }
+
+    /** {@inheritDoc} */
     @Override public boolean onDone(@Nullable AffinityTopologyVersion res, @Nullable Throwable err) {
         if (!done.compareAndSet(false, true))
             return false;
@@ -1409,6 +1414,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         cctx.cache().onExchangeDone(initialVersion(), exchActions, err);
 
+        cctx.exchange().onExchangeDone(res, initialVersion(), err);
+
         if (exchActions != null && err == null)
             exchActions.completeRequestFutures(cctx);
 
@@ -1442,8 +1449,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (log.isDebugEnabled())
                 log.debug("Completed partition exchange [localNode=" + cctx.localNodeId() + ", exchange= " + this +
                     ", durationFromInit=" + (U.currentTimeMillis() - initTs) + ']');
-
-            cctx.exchange().onExchangeDone(res, initialVersion(), err);
 
             initFut.onDone(err == null);
 
