@@ -538,6 +538,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     consistencyCheck();
 
+                    if (affReady && oldest != null && oldest.isLocal())
+                        createMovingPartitions(grp.affinity().readyAffinity(evts.topologyVersion()));
+
                     if (log.isDebugEnabled()) {
                         log.debug("Partition map after beforeExchange [exchId=" + exchFut.exchangeId() +
                             ", fullMap=" + fullMapString() + ']');
@@ -1616,6 +1619,27 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         }
         finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    public void createMovingPartitions(AffinityAssignment aff) {
+        for (Map.Entry<UUID, GridDhtPartitionMap> e : node2part.entrySet()) {
+            GridDhtPartitionMap map = e.getValue();
+
+            addMoving(map, aff.backupPartitions(e.getKey()));
+            addMoving(map, aff.primaryPartitions(e.getKey()));
+        }
+    }
+
+    private void addMoving(GridDhtPartitionMap map, Set<Integer> parts) {
+        if (F.isEmpty(parts))
+            return;
+
+        for (Integer p : parts) {
+            GridDhtPartitionState state = map.get(p);
+
+            if (state == null || state == EVICTED)
+                map.put(p, MOVING);
         }
     }
 
