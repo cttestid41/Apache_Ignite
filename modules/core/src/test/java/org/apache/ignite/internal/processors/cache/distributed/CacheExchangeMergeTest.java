@@ -184,6 +184,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     // TODO IGNITE-5578 joined merged node failed (client/server).
     // TODO IGNITE-5578 random topology changes, random delay for exchange messages.
     // TODO IGNITE-5578 check exchanges/affinity consistency.
+    // TODO IGNITE-5578 join with start cache, merge with fail
+    // TODO IGNITE-5578 join with start cache, merge with join, coordinator left
+    // TODO IGNITE-5578 join with start cache, merge with join, become coordinator
 
     /**
      * @throws Exception If failed.

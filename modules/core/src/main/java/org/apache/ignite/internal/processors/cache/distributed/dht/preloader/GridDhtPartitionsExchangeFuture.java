@@ -1746,7 +1746,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                     finishState0 = new FinishState(cctx.localNodeId(),
                         initialVersion(),
-                        createPartitionsMessage(false));
+                        createPartitionsMessage(true));
                 }
 
                 sendAllPartitionsToNode(finishState0, msg, nodeId);
