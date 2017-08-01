@@ -214,9 +214,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private ConcurrentMap<UUID, GridDhtPartitionsSingleMessage> msgs = new ConcurrentHashMap8<>();
 
     /** */
+    @GridToStringExclude
     private Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs;
 
     /** */
+    @GridToStringExclude
     private int awaitMergedMsgs;
 
     /** */

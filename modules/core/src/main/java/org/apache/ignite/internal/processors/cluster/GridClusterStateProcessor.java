@@ -498,7 +498,7 @@ public class GridClusterStateProcessor extends GridProcessorAdapter {
             log.info("Sending " + prettyStr(activate) + " request from node [id=" + ctx.localNodeId() +
                 ", topVer=" + topVer +
                 ", client=" + ctx.clientNode() +
-                ", daemon" + ctx.isDaemon() + "]");
+                ", daemon=" + ctx.isDaemon() + "]");
         }
 
         IgniteFuture<Void> fut = comp.runAsync(new ClientChangeGlobalStateComputeRequest(activate));
