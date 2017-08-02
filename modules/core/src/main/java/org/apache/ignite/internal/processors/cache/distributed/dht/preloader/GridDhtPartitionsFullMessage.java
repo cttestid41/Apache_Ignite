@@ -32,6 +32,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
+import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
@@ -331,11 +332,11 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     @Override public void prepareMarshal(GridCacheSharedContext ctx) throws IgniteCheckedException {
         super.prepareMarshal(ctx);
 
-        boolean marshal = (parts != null && partsBytes == null) ||
-            (partCntrs != null && partCntrsBytes == null) ||
+        boolean marshal = (!F.isEmpty(parts) && partsBytes == null) ||
+            (partCntrs != null && !partCntrs.empty() && partCntrsBytes == null) ||
             (partHistSuppliers != null && partHistSuppliersBytes == null) ||
             (partsToReload != null && partsToReloadBytes == null) ||
-            (errs != null && errsBytes == null);
+            (!F.isEmpty(errs) && errsBytes == null);
 
         if (marshal) {
             byte[] partsBytes0 = null;
@@ -344,10 +345,10 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
             byte[] partsToReloadBytes0 = null;
             byte[] errsBytes0 = null;
 
-            if (parts != null && partsBytes == null)
+            if (!F.isEmpty(parts) && partsBytes == null)
                 partsBytes0 = U.marshal(ctx, parts);
 
-            if (partCntrs != null && partCntrsBytes == null)
+            if (partCntrs != null && !partCntrs.empty() && partCntrsBytes == null)
                 partCntrsBytes0 = U.marshal(ctx, partCntrs);
 
             if (partHistSuppliers != null && partHistSuppliersBytes == null)
@@ -356,7 +357,7 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
             if (partsToReload != null && partsToReloadBytes == null)
                 partsToReloadBytes0 = U.marshal(ctx, partsToReload);
 
-            if (errs != null && errsBytes == null)
+            if (!F.isEmpty(errs) && errsBytes == null)
                 errsBytes0 = U.marshal(ctx, errs);
 
             if (compress) {

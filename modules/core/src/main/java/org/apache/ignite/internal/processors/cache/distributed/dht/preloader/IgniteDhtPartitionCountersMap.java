@@ -34,6 +34,10 @@ public class IgniteDhtPartitionCountersMap implements Serializable {
     /** */
     private Map<Integer, Map<Integer, T2<Long, Long>>> map;
 
+    public synchronized boolean empty() {
+        return map == null || map.isEmpty();
+    }
+
     /**
      * @param cacheId Cache ID.
      * @param cntrMap Counters map.
