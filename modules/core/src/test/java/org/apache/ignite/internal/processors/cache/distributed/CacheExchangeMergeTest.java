@@ -1148,7 +1148,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                             ", cache=" + cacheName + ']';
 
                     for (int i = 0; i < 5; i++) {
-                        Integer key = rnd.nextInt(100_000);
+                        Integer key = rnd.nextInt(20_000);
 
                         cache.put(key, i);
 
@@ -1161,7 +1161,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                         Map<Integer, Integer> map = new TreeMap<>();
 
                         for (int j = 0; j < 10; j++) {
-                            Integer key = rnd.nextInt(100_000);
+                            Integer key = rnd.nextInt(20_000);
 
                             map.put(key, i);
                         }
@@ -1204,7 +1204,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         try (Transaction tx = node.transactions().txStart(concurrency, isolation)) {
             for (int i = 0; i < 5; i++) {
-                Integer key = rnd.nextInt(100_000);
+                Integer key = rnd.nextInt(20_000);
 
                 cache.put(key, i);
 

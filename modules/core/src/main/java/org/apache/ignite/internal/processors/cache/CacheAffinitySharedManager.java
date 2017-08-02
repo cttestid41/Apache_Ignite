@@ -1239,12 +1239,15 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         return grpHolder.affinity();
     }
 
-    public void mergeExchangesOnServerLeft(final GridDhtPartitionsExchangeFuture fut, final GridDhtPartitionsFullMessage msg) {
+    /**
+     * @param fut Current exchange future.
+     * @param msg Finish exchange message.
+     */
+    public void mergeExchangesOnServerLeft(final GridDhtPartitionsExchangeFuture fut,
+        final GridDhtPartitionsFullMessage msg) {
         final Map<Long, ClusterNode> nodesByOrder = new HashMap<>();
 
         final Map<Object, List<List<ClusterNode>>> affCache = new HashMap<>();
-
-        log.info("mergeExchangesOnServerLeft [topVer=" + fut.context().events().discoveryCache().version() + ']');
 
         forAllCacheGroups(false, new IgniteInClosureX<GridAffinityAssignmentCache>() {
             @Override public void applyx(GridAffinityAssignmentCache aff) throws IgniteCheckedException {
@@ -2045,7 +2048,10 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @param topVer Topology version.
      * @param fut Exchange future.
+     * @param c Closure converting affinity diff.
+     * @param initAff {@code True} if need initialize affinity.
      * @return Affinity assignment.
      * @throws IgniteCheckedException If failed.
      */

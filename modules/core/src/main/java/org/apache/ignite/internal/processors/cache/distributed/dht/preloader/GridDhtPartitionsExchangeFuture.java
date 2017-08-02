@@ -130,6 +130,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @GridToStringExclude
     private final Set<UUID> remaining = new HashSet<>();
 
+    /** */
+    @GridToStringExclude
+    private final Object mux = new Object();
+
     /** Guarded by this */
     @GridToStringExclude
     private int pendingSingleUpdates;
@@ -805,7 +809,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 changeGlobalStateE = e;
 
                 if (crd) {
-                    synchronized (this) {
+                    synchronized (mux) {
                         changeGlobalStateExceptions.put(cctx.localNodeId(), e);
                     }
                 }
@@ -1567,7 +1571,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public boolean mergeJoinExchange(GridDhtPartitionsExchangeFuture fut) {
         boolean wait;
 
-        synchronized (this) {
+        synchronized (mux) {
             assert (!isDone() && !initFut.isDone()) || cctx.kernalContext().isStopping() : this;
             assert (mergedWith == null && state == null) || cctx.kernalContext().isStopping()  : this;
 
@@ -1588,7 +1592,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return Pending join request if any.
      */
     @Nullable public GridDhtPartitionsSingleMessage mergeJoinExchangeOnDone(GridDhtPartitionsExchangeFuture fut) {
-        synchronized (this) {
+        synchronized (mux) {
             assert !isDone();
             assert !initFut.isDone();
             assert mergedWith == null;
@@ -1617,7 +1621,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         FinishState finishState0 = null;
 
-        synchronized (this) {
+        synchronized (mux) {
             if (state == ExchangeLocalState.DONE) {
                 assert finishState != null;
 
@@ -1672,7 +1676,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         if (msg.restoreState()) {
             InitNewCoordinatorFuture newCrdFut0;
 
-            synchronized (this) {
+            synchronized (mux) {
                 assert newCrdFut != null;
 
                 newCrdFut0 = newCrdFut;
@@ -1691,7 +1695,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         GridDhtPartitionsExchangeFuture mergedWith0 = null;
 
-        synchronized (this) {
+        synchronized (mux) {
             if (state == ExchangeLocalState.MERGED) {
                 assert mergedWith != null;
 
@@ -1733,7 +1737,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                 FinishState finishState0;
 
-                synchronized (GridDhtPartitionsExchangeFuture.this) {
+                synchronized (mux) {
                     finishState0 = finishState;
                 }
 
@@ -1758,7 +1762,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 FinishState finishState0;
 
-                synchronized (GridDhtPartitionsExchangeFuture.this) {
+                synchronized (mux) {
                     finishState0 = finishState;
                 }
 
@@ -1794,7 +1798,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         FinishState finishState0 = null;
 
-        synchronized (this) {
+        synchronized (mux) {
             assert crd != null;
 
             switch (state) {
@@ -1858,7 +1862,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     updatePartitionSingleMap(nodeId, msg);
             }
             finally {
-                synchronized (this) {
+                synchronized (mux) {
                     assert pendingSingleUpdates > 0;
 
                     pendingSingleUpdates--;
@@ -2154,7 +2158,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             Map<Integer, CacheGroupAffinityMessage> idealAffDiff = null;
 
             if (exchCtx.mergeExchanges()) {
-                synchronized (this) {
+                synchronized (mux) {
                     if (mergedJoinExchMsgs != null) {
                         for (Map.Entry<UUID, GridDhtPartitionsSingleMessage> e : mergedJoinExchMsgs.entrySet()) {
                             msgs.put(e.getKey(), e.getValue());
@@ -2256,7 +2260,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             msg.prepareMarshal(cctx);
 
-            synchronized (this) {
+            synchronized (mux) {
                 finishState = new FinishState(crd.id(), resTopVer, msg);
 
                 state = ExchangeLocalState.DONE;
@@ -2282,7 +2286,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs0;
 
-                synchronized (this) {
+                synchronized (mux) {
                     srvNodes.remove(cctx.localNode());
 
                     nodes = U.newHashSet(srvNodes.size());
@@ -2461,7 +2465,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private void processSinglePartitionRequest(ClusterNode node, GridDhtPartitionsSingleRequest msg) {
         FinishState finishState0 = null;
 
-        synchronized (this) {
+        synchronized (mux) {
             if (crd == null) {
                 log.info("Ignore partitions request, no coordinator [node=" + node.id() + ']');
 
@@ -2577,7 +2581,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (checkCrd) {
                 assert node != null;
 
-                synchronized (this) {
+                synchronized (mux) {
                     if (crd == null) {
                         log.info("Ignore full message, all server nodes left: " + msg);
 
@@ -2881,14 +2885,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                         InitNewCoordinatorFuture newCrdFut0;
 
-                        synchronized (this) {
+                        synchronized (mux) {
                             newCrdFut0 = newCrdFut;
                         }
 
                         if (newCrdFut0 != null)
                             newCrdFut0.onNodeLeft(node.id());
 
-                        synchronized (this) {
+                        synchronized (mux) {
                             if (!srvNodes.remove(node))
                                 return;
 
@@ -3046,7 +3050,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 log.info("New coordinator restored state [ver=" + initialVersion() +
                     ", resVer=" + fullMsg.resultTopologyVersion() + ']');
 
-                synchronized (this) {
+                synchronized (mux) {
                     state = ExchangeLocalState.DONE;
 
                     finishState = new FinishState(crd.id(), fullMsg.resultTopologyVersion(), fullMsg);
@@ -3097,7 +3101,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             allRcvd = true;
 
-            synchronized (this) {
+            synchronized (mux) {
                 remaining.clear(); // Do not process messages.
 
                 assert crd != null && crd.isLocal();
@@ -3110,7 +3114,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         else {
             Set<UUID> remaining0 = null;
 
-            synchronized (this) {
+            synchronized (mux) {
                 assert crd != null && crd.isLocal();
 
                 state = ExchangeLocalState.CRD;
@@ -3215,7 +3219,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             ClusterNode crd;
             Set<UUID> remaining;
 
-            synchronized (this) {
+            synchronized (mux) {
                 crd = this.crd;
                 remaining = new HashSet<>(this.remaining);
             }
@@ -3249,7 +3253,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @Override public String toString() {
         Set<UUID> remaining;
 
-        synchronized (this) {
+        synchronized (mux) {
             remaining = new HashSet<>(this.remaining);
         }
 
