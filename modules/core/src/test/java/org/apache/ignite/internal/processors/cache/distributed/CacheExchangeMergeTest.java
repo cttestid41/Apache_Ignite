@@ -440,7 +440,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
             checkCaches();
 
-            // TODO 5578: stop by one, check caches - in all tests.
+            startGrid(1000);
+
+            checkCaches();
+
             stopAllGrids();
         }
     }
