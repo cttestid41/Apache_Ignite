@@ -1141,6 +1141,9 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     ) throws IgniteCheckedException {
         caches.initStartedCaches(descs);
 
+        if (fut.context().mergeExchanges())
+            return;
+
         if (crd) {
             forAllRegisteredCacheGroups(new IgniteInClosureX<CacheGroupDescriptor>() {
                 @Override public void applyx(CacheGroupDescriptor desc) throws IgniteCheckedException {
@@ -1369,7 +1372,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
      * @throws IgniteCheckedException If failed.
      */
     public  Map<Integer, CacheGroupAffinityMessage> onServerLeftWithExchangeMergeProtocol(
-        GridDhtPartitionsExchangeFuture fut) throws IgniteCheckedException
+        final GridDhtPartitionsExchangeFuture fut) throws IgniteCheckedException
     {
         final ExchangeDiscoveryEvents evts = fut.context().events();
 
@@ -1385,7 +1388,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                 List<List<ClusterNode>> assign =
                     cache.affinity().calculate(topVer, evts.lastEvent(), evts.discoveryCache());
 
-                if (!cache.rebalanceEnabled)
+                if (!cache.rebalanceEnabled || fut.cacheGroupAddedOnExchange(desc.groupId(), desc.receivedFrom()))
                     cache.affinity().initialize(topVer, assign);
             }
         });
@@ -2061,7 +2064,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             @Override public void applyx(CacheGroupDescriptor desc) throws IgniteCheckedException {
                 CacheGroupHolder grpHolder = groupHolder(topVer, desc);
 
-                if (!grpHolder.rebalanceEnabled)
+                if (!grpHolder.rebalanceEnabled || fut.cacheGroupAddedOnExchange(desc.groupId(), desc.receivedFrom()))
                     return;
 
                 AffinityTopologyVersion affTopVer = grpHolder.affinity().lastVersion();

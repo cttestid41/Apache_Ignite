@@ -461,13 +461,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         lastTopChangeVer = readyTopVer = evts.topologyVersion();
                     }
 
-                    if (evts.hasServerLeft()) {
-                        for (DiscoveryEvent evt : evts.events()) {
-                            if (evts.serverLeftEvent(evt))
-                                removeNode(evt.eventNode().id());
-                        }
-                    }
-
                     ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
 
                     if (log.isDebugEnabled()) {
@@ -513,6 +506,13 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                                 log.debug("Copied old map into new map on oldest node (previous oldest node left) [" +
                                     "exchId=" + exchFut.exchangeId() + ", fullMap=" + fullMapString() + ']');
                             }
+                        }
+                    }
+
+                    if (evts.hasServerLeft()) {
+                        for (DiscoveryEvent evt : evts.events()) {
+                            if (evts.serverLeftEvent(evt))
+                                removeNode(evt.eventNode().id());
                         }
                     }
 
@@ -1047,9 +1047,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
         try {
             assert node2part != null && node2part.valid() : "Invalid node-to-partitions map [topVer=" + topVer +
+                ", grp=" + grp.cacheOrGroupName() +
                 ", allIds=" + allIds +
-                ", node2part=" + node2part +
-                ", grp=" + grp.cacheOrGroupName() + ']';
+                ", node2part=" + node2part + ']';
 
             // Node IDs can be null if both, primary and backup, nodes disappear.
             List<ClusterNode> nodes = new ArrayList<>();

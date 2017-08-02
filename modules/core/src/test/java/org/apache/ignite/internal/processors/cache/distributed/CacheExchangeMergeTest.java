@@ -529,9 +529,68 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         checkCaches();
     }
 
-    // TODO IGNITE-5578 join with start cache, merge with fail
-    // TODO IGNITE-5578 join with start cache, merge with join, coordinator left
-    // TODO IGNITE-5578 join with start cache, merge with join, become coordinator
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStartCacheOnJoinAndFailMerge() throws Exception {
+        cfgCache = false;
+
+        final Ignite srv0 = startGrids(2);
+
+        mergeExchangeWaitVersion(srv0, 5);
+
+        cfgCache = true;
+
+        IgniteInternalFuture fut = startGrids(srv0, 2, 2);
+
+        stopGrid(1);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStartCacheOnJoinAndCoordinatorFailed1() throws Exception {
+        cfgCache = false;
+
+        final Ignite srv0 = startGrids(2);
+
+        mergeExchangeWaitVersion(srv0, 5);
+
+        cfgCache = true;
+
+        IgniteInternalFuture fut = startGrids(srv0, 2, 2);
+
+        stopGrid(0);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testStartCacheOnJoinAndCoordinatorFailed2() throws Exception {
+        cfgCache = false;
+
+        final Ignite srv0 = startGrid(0);
+
+        mergeExchangeWaitVersion(srv0, 3);
+
+        cfgCache = true;
+
+        IgniteInternalFuture fut = startGrids(srv0, 1, 2);
+
+        stopGrid(0);
+
+        fut.get();
+
+        checkCaches();
+    }
 
     /**
      * @throws Exception If failed.
