@@ -669,7 +669,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             updateRebalanceVersion(aff);
 
             if (node2part != null && node2part.valid())
-                changed |= checkEvictions(updateSeq, aff);
+                changed |= checkEvictions(updateSeq, topVer, aff);
 
             consistencyCheck();
         }
@@ -786,15 +786,17 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             if (loc != null && state == EVICTED) {
                 locParts.set(p, loc = null);
 
-                if (!belongs)
+                if (!belongs) {
                     throw new GridDhtInvalidPartitionException(p, "Adding entry to evicted partition " +
                         "(often may be caused by inconsistent 'key.hashCode()' implementation) " +
                         "[part=" + p + ", topVer=" + topVer + ", this.topVer=" + this.readyTopVer + ']');
+                }
             }
-            else if (loc != null && state == RENTING && !showRenting)
+            else if (loc != null && state == RENTING && !showRenting) {
                 throw new GridDhtInvalidPartitionException(p, "Adding entry to partition that is concurrently " +
                     "evicted [part=" + p + ", shouldBeMoving=" + loc.reload() + ", belongs=" + belongs +
-                    ", topVer=" + topVer + ", curTopVer=" + this.topVer + "]");
+                    ", topVer=" + topVer + ", curTopVer=" + this.readyTopVer + "]");
+            }
 
             if (loc == null) {
                 if (!belongs)
@@ -1143,13 +1145,13 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     /** {@inheritDoc} */
     @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection"})
     @Override public boolean update(
-        @Nullable AffinityTopologyVersion exchangeResVer,
+        @Nullable AffinityTopologyVersion exchangeVer,
         GridDhtPartitionFullMap partMap,
         @Nullable Map<Integer, T2<Long, Long>> incomeCntrMap,
         Set<Integer> partsToReload,
         @Nullable AffinityTopologyVersion msgTopVer) {
         if (log.isDebugEnabled())
-            log.debug("Updating full partition map [exchVer=" + exchangeResVer + ", parts=" + fullMapString() + ']');
+            log.debug("Updating full partition map [exchVer=" + exchangeVer + ", parts=" + fullMapString() + ']');
 
         assert partMap != null;
 
@@ -1182,20 +1184,20 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                 }
             }
 
-            if (exchangeResVer != null) {
+            if (exchangeVer != null) {
                 // Ignore if exchange already finished or new exchange started.
-                if (readyTopVer.compareTo(exchangeResVer) > 0 || lastTopChangeVer.compareTo(exchangeResVer) > 0) {
+                if (readyTopVer.compareTo(exchangeVer) > 0 || lastTopChangeVer.compareTo(exchangeVer) > 0) {
                     if (log.isDebugEnabled()) {
                         log.debug("Stale exchange id for full partition map update (will ignore) [" +
                             "lastTopChange=" + lastTopChangeVer +
                             ", readTopVer=" + readyTopVer +
-                            ", exchVer=" + exchangeResVer + ']');
+                            ", exchVer=" + exchangeVer + ']');
                     }
 
                     U.warn(log, "Stale exchange id for full partition map update (will ignore) [" +
                         "lastTopChange=" + lastTopChangeVer +
                         ", readTopVer=" + readyTopVer +
-                        ", exchVer=" + exchangeResVer + ']');
+                        ", exchVer=" + exchangeVer + ']');
 
                     return false;
                 }
@@ -1227,7 +1229,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         fullMapUpdated = true;
 
                         if (log.isDebugEnabled()) {
-                            log.debug("Overriding partition map in full update map [exchVer=" + exchangeResVer +
+                            log.debug("Overriding partition map in full update map [exchVer=" + exchangeVer +
                                 ", curPart=" + mapString(part) +
                                 ", newPart=" + mapString(newPart) + ']');
                         }
@@ -1264,7 +1266,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             if (!fullMapUpdated) {
                 if (log.isDebugEnabled()) {
                     log.debug("No updates for full partition map (will ignore) [lastExch=" + lastTopChangeVer +
-                        ", exchVer=" + exchangeResVer +
+                        ", exchVer=" + exchangeVer +
                         ", curMap=" + node2part +
                         ", newMap=" + partMap + ']');
                 }
@@ -1272,15 +1274,15 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                 return false;
             }
 
-            if (exchangeResVer != null) {
-                assert exchangeResVer.compareTo(readyTopVer) >= 0 && exchangeResVer.compareTo(lastTopChangeVer) >= 0;
+            if (exchangeVer != null) {
+                assert exchangeVer.compareTo(readyTopVer) >= 0 && exchangeVer.compareTo(lastTopChangeVer) >= 0;
 
-                lastTopChangeVer = readyTopVer = exchangeResVer;
+                lastTopChangeVer = readyTopVer = exchangeVer;
             }
 
             node2part = partMap;
 
-            if (exchangeResVer == null && (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0)) {
+            if (exchangeVer == null && (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0)) {
                 AffinityAssignment affAssignment = grp.affinity().readyAffinity(readyTopVer);
 
                 for (Map.Entry<UUID, GridDhtPartitionMap> e : partMap.entrySet()) {
