@@ -80,6 +80,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     private static TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
 
     /** */
+    private static final long WAIT_SECONDS = 15;
+
+    /** */
     private ThreadLocal<Boolean> client = new ThreadLocal<>();
 
     /** */
@@ -494,7 +497,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         IgniteInternalFuture<?> fut = startGrids(srv0, srvs, 2);
 
-        if (latch != null && !latch.await(15, TimeUnit.SECONDS))
+        if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
         stopGrid(getTestIgniteInstanceName(0), true, false);
@@ -537,7 +540,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         IgniteInternalFuture<?> fut = startGrids(srv0, srvs, startNodes);
 
-        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+        if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
         stopGrid(getTestIgniteInstanceName(0), true, false);
@@ -571,7 +574,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             }
         }, 2, "start-node");
 
-        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+        if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
         stopGrid(getTestIgniteInstanceName(0), true, false);
@@ -611,7 +614,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         waitForExchangeStart(ignite(0), nodes + 1);
 
-        if (latch != null && !latch.await(5, TimeUnit.SECONDS))
+        if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
 
         stopGrid(0);
@@ -1001,7 +1004,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                 }
             }, "start-node-" + nodeIdx);
 
-            if (!latch.await(5, TimeUnit.SECONDS))
+            if (!latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
                 fail();
 
             fut.add(fut0);
