@@ -634,7 +634,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
 
                 case CLIENT: {
-                    if (!exchCtx.mergeExchanges())
+                    if (!exchCtx.mergeExchanges() && exchCtx.fetchAffinityOnJoin())
                         initTopologies();
 
                     clientOnlyExchange();
@@ -1868,7 +1868,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     pendingSingleUpdates--;
 
                     if (pendingSingleUpdates == 0)
-                        notifyAll();
+                        mux.notifyAll();
                 }
             }
         }
@@ -1887,7 +1887,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private synchronized boolean awaitSingleMapUpdates() {
         try {
             while (pendingSingleUpdates > 0)
-                U.wait(this);
+                U.wait(mux);
 
             return true;
         }
@@ -2668,6 +2668,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     }
                 }
             }
+            else if (localJoinExchange() && !exchCtx.fetchAffinityOnJoin())
+                cctx.affinity().onLocalJoin(this, msg, resTopVer);
 
             updatePartitionFullMap(resTopVer, msg);
 

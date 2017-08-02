@@ -359,6 +359,8 @@ public class GridAffinityAssignmentCache {
     public List<List<ClusterNode>> readyAssignments(AffinityTopologyVersion topVer) {
         AffinityAssignment aff = readyAffinity(topVer);
 
+        assert aff != null : "No ready affinity [grp=" + cacheOrGrpName + ", ver=" + topVer + ']';
+
         return aff.assignment();
     }
 

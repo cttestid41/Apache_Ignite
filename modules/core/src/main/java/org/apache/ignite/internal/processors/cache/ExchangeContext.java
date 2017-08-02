@@ -51,6 +51,7 @@ public class ExchangeContext {
     private final boolean compatibilityNode = IgniteSystemProperties.getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, false);
 
     /**
+     * @param crd Coordinator flag.
      * @param fut Exchange future.
      */
     public ExchangeContext(boolean crd, GridDhtPartitionsExchangeFuture fut) {
@@ -62,9 +63,14 @@ public class ExchangeContext {
             merge = false;
         }
         else {
+            boolean startCaches = fut.exchangeId().isJoined() &&
+                fut.sharedContext().cache().receivedCachesFromNodeJoin(fut.exchangeId().eventNode());
+
             fetchAffOnJoin = protocolVer == 1;
 
-            merge = protocolVer > 1 && fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
+            merge = !startCaches &&
+                protocolVer > 1 &&
+                fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
         }
 
         evts = new ExchangeDiscoveryEvents(fut);
@@ -89,7 +95,7 @@ public class ExchangeContext {
      * @return {@code True} if on local join need fetch affinity per-group (old protocol),
      *      otherwise affinity is sent in {@link GridDhtPartitionsFullMessage}.
      */
-    boolean fetchAffinityOnJoin() {
+    public boolean fetchAffinityOnJoin() {
         return fetchAffOnJoin;
     }
 
