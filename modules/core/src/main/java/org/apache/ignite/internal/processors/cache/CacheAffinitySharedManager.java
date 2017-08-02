@@ -1323,8 +1323,6 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                         aff.calculate(evts.topologyVersion(), evts.lastEvent(), evts.discoveryCache());
 
                     aff.initialize(evts.topologyVersion(), assignments);
-
-                    grp.topology().initPartitionsWhenAffinityReady(resTopVer, fut);
                 }
                 else if (fut.cacheGroupAddedOnExchange(aff.groupId(), grp.receivedFrom())) {
                     List<List<ClusterNode>> assignment = aff.calculate(evts.topologyVersion(),
@@ -1333,6 +1331,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                     aff.initialize(evts.topologyVersion(), assignment);
                 }
+
+                grp.topology().initPartitionsWhenAffinityReady(resTopVer, fut);
             }
         });
     }

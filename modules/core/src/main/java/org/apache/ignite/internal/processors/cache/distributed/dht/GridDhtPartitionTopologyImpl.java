@@ -1315,7 +1315,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             GridDhtPartitionMap nodeMap = partMap.get(ctx.localNodeId());
 
-            if (nodeMap != null && ctx.database().persistenceEnabled()) {
+            if (nodeMap != null && ctx.database().persistenceEnabled() && readyTopVer.initialized()) {
                 for (Map.Entry<Integer, GridDhtPartitionState> e : nodeMap.entrySet()) {
                     int p = e.getKey();
                     GridDhtPartitionState state = e.getValue();
@@ -1323,7 +1323,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                     if (state == OWNING) {
                         GridDhtLocalPartition locPart = locParts.get(p);
 
-                        assert locPart != null;
+                        assert locPart != null : grp.cacheOrGroupName();
 
                         if (incomeCntrMap != null) {
                             T2<Long, Long> cntr = incomeCntrMap.get(p);
