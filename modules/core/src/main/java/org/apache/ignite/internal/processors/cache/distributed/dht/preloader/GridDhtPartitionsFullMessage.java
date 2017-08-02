@@ -154,9 +154,12 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
         cp.partsToReload = partsToReload;
         cp.partsToReloadBytes = partsToReloadBytes;
         cp.topVer = topVer;
+        cp.errs = errs;
+        cp.errsBytes = errsBytes;
+        cp.compress = compress;
+        cp.resTopVer = resTopVer;
         cp.joinedNodeAff = joinedNodeAff;
         cp.idealAffDiff = idealAffDiff;
-        cp.resTopVer = resTopVer;
     }
 
     /**
