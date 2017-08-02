@@ -1053,13 +1053,6 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
-     * @return All registered cache groups.
-     */
-    public Collection<CacheGroupDescriptor> cacheGroups() {
-        return caches.allGroups();
-    }
-
-    /**
      * @param c Cache closure.
      * @throws IgniteCheckedException If failed
      */
@@ -1486,6 +1479,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                 continue;
 
             if (fut.cacheGroupAddedOnExchange(grp.groupId(), grp.receivedFrom())) {
+                // Do not calculate affinity since it can change in case of exchange merge.
                 if (!fut.context().mergeExchanges()) {
                     List<List<ClusterNode>> assignment = grp.affinity().calculate(topVer,
                             fut.discoveryEvent(),
@@ -1657,7 +1651,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     final GridAffinityAssignmentCache aff = grpHolder.affinity();
 
                     if (newAff) {
-                        if (!aff.lastVersionEquals(topVer)) {
+                        if (!aff.lastVersion().equals(topVer)) {
                             List<List<ClusterNode>> assign =
                                 aff.calculate(topVer, fut.discoveryEvent(), fut.discoCache());
 
@@ -1717,7 +1711,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     if (newAff) {
                         GridAffinityAssignmentCache aff = grpHolder.affinity();
 
-                        if (!aff.lastVersionEquals(topVer)) {
+                        if (!aff.lastVersion().equals(topVer)) {
                             List<List<ClusterNode>> assign = aff.calculate(topVer,
                                 fut.discoveryEvent(),
                                 fut.discoCache());
@@ -1786,6 +1780,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @param fut Current exchange future.
      * @param crd Coordinator flag.
      * @throws IgniteCheckedException If failed.
      * @return Rabalance info.
@@ -2172,6 +2167,13 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         return assignment;
+    }
+
+    /**
+     * @return All registered cache groups.
+     */
+    public Collection<CacheGroupDescriptor> cacheGroups() {
+        return caches.allGroups();
     }
 
     /**

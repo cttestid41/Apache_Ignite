@@ -237,9 +237,6 @@ public class CacheExchangeMessageDuplicatedStateTest extends GridCommonAbstractT
     private void checkFullMessage(GridDhtPartitionsFullMessage msg) {
         Map<Integer, Integer> dupPartsData = getFieldValue(msg, "dupPartsData");
 
-        if (dupPartsData == null)
-            System.out.println();
-
         assertNotNull(dupPartsData);
 
         checkFullMessage(AFF1_CACHE1, AFF1_CACHE2, dupPartsData, msg);

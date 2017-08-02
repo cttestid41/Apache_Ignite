@@ -337,14 +337,6 @@ public class GridAffinityAssignmentCache {
     }
 
     /**
-     * @param topVer
-     * @return
-     */
-    public boolean lastVersionEquals(AffinityTopologyVersion topVer) {
-        return topVer.equals(lastVersion());
-    }
-
-    /**
      * @return Last calculated affinity version.
      */
     public AffinityTopologyVersion lastVersion() {
