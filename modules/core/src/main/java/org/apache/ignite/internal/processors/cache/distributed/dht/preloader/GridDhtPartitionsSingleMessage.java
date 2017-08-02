@@ -120,23 +120,29 @@ public class GridDhtPartitionsSingleMessage extends GridDhtPartitionsAbstractMes
         this.compress = compress;
     }
 
-    public void finishMessage(GridDhtPartitionsFullMessage finishMsg) {
+    /**
+     * @param finishMsg Exchange finish message (used to restore exchange state on new coordinator).
+     */
+    void finishMessage(GridDhtPartitionsFullMessage finishMsg) {
         this.finishMsg = finishMsg;
     }
 
-    public GridDhtPartitionsFullMessage finishMessage() {
+    /**
+     * @return Exchange finish message (used to restore exchange state on new coordinator).
+     */
+    GridDhtPartitionsFullMessage finishMessage() {
         return finishMsg;
     }
 
     /**
-     * @param grpsAffRequest
+     * @param grpsAffRequest Cache groups to get affinity for (affinity is requested when node joins cluster).
      */
-    public void cacheGroupsAffinityRequest(Collection<Integer> grpsAffRequest) {
+    void cacheGroupsAffinityRequest(Collection<Integer> grpsAffRequest) {
         this.grpsAffRequest = grpsAffRequest;
     }
 
     /**
-     * @return
+     * @return Cache groups to get affinity for (affinity is requested when node joins cluster).
      */
     @Nullable public Collection<Integer> cacheGroupsAffinityRequest() {
         return grpsAffRequest;

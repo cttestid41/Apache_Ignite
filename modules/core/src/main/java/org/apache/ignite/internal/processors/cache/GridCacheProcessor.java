@@ -2100,7 +2100,7 @@ public class GridCacheProcessor extends GridProcessorAdapter {
     /**
      * Callback invoked when first exchange future for dynamic cache is completed.
      *
-     * @param topVer Completed topology version.
+     * @param cacheStartVer Started caches version to create proxy for.
      * @param exchActions Change requests.
      * @param err Error.
      */

@@ -202,14 +202,14 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     }
 
     /**
-     * @return
+     * @return Difference with ideal affinity.
      */
     @Nullable public Map<Integer, CacheGroupAffinityMessage> idealAffinityDiff() {
         return idealAffDiff;
     }
 
     /**
-     * @param idealAffDiff
+     * @param idealAffDiff Difference with ideal affinity.
      */
     void idealAffinityDiff(Map<Integer, CacheGroupAffinityMessage> idealAffDiff) {
         this.idealAffDiff = idealAffDiff;

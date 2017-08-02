@@ -54,7 +54,6 @@ import org.apache.ignite.internal.events.DiscoveryCustomEvent;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.managers.discovery.DiscoveryCustomMessage;
-import org.apache.ignite.internal.processors.affinity.AffinityAssignment;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
 import org.apache.ignite.internal.processors.cache.CacheAffinityChangeMessage;
@@ -79,7 +78,6 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateFinishMessage;
 import org.apache.ignite.internal.processors.cluster.ChangeGlobalStateMessage;
-import org.apache.ignite.internal.util.GridPartitionStateMap;
 import org.apache.ignite.internal.util.IgniteUtils;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
@@ -2163,9 +2161,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 exchCtx.events().processEvents(this);
 
                 if (exchCtx.events().serverLeft())
-                    idealAffDiff = cctx.affinity().mergeExchangesInitAffinityOnServerLeft(this);
+                    idealAffDiff = cctx.affinity().onServerLeftWithExchangeMergeProtocol(this);
                 else
-                    cctx.affinity().mergeExchangesOnServerJoin(this, true);
+                    cctx.affinity().onServerJoinWithExchangeMergeProtocol(this, true);
 
                 for (CacheGroupDescriptor desc : cctx.affinity().cacheGroups()) {
                     if (desc.config().getCacheMode() == CacheMode.LOCAL)
@@ -2648,7 +2646,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (exchCtx.events().serverLeft())
                         cctx.affinity().mergeExchangesOnServerLeft(this, msg);
                     else
-                        cctx.affinity().mergeExchangesOnServerJoin(this, false);
+                        cctx.affinity().onServerJoinWithExchangeMergeProtocol(this, false);
 
                     for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                         if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
