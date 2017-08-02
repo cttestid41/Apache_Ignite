@@ -58,7 +58,7 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 
-import static org.apache.ignite.internal.processors.cache.ExchangeContext.IGNITE_EXCHANGE_COMPATIBILITY_MODE;
+import static org.apache.ignite.internal.processors.cache.ExchangeContext.IGNITE_EXCHANGE_COMPATIBILITY_VER_1;
 
 /**
  *
@@ -206,13 +206,13 @@ public class IgniteCacheClientNodePartitionsExchangeTest extends GridCommonAbstr
      * @throws Exception If failed.
      */
     public void testPartitionsExchangeCompatibilityMode() throws Exception {
-        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE, "true");
+        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, "true");
 
         try {
             partitionsExchange(true);
         }
         finally {
-            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE);
+            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1);
         }
     }
 

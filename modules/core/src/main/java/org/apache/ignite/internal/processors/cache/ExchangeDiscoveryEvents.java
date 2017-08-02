@@ -81,7 +81,7 @@ public class ExchangeDiscoveryEvents {
                 fut.sharedContext().mvcc().removeExplicitNodeLocks(evt.eventNode().id(), fut.initialVersion());
         }
 
-        if (serverLeft())
+        if (hasServerLeft())
             warnNoAffinityNodes(fut.sharedContext());
     }
 
@@ -128,6 +128,11 @@ public class ExchangeDiscoveryEvents {
         return evts;
     }
 
+    public boolean serverLeftEvent(DiscoveryEvent evt) {
+        return  ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()));
+    }
+
+
     public DiscoCache discoveryCache() {
         return discoCache;
     }
@@ -140,11 +145,11 @@ public class ExchangeDiscoveryEvents {
         return topVer;
     }
 
-    public boolean serverJoin() {
+    public boolean hasServerJoin() {
         return srvJoin;
     }
 
-    public boolean serverLeft() {
+    public boolean hasServerLeft() {
         return srvLeft;
     }
 

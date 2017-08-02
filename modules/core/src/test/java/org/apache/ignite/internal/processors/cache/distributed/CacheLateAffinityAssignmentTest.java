@@ -102,7 +102,7 @@ import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheRebalanceMode.ASYNC;
 import static org.apache.ignite.cache.CacheRebalanceMode.SYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
-import static org.apache.ignite.internal.processors.cache.ExchangeContext.IGNITE_EXCHANGE_COMPATIBILITY_MODE;
+import static org.apache.ignite.internal.processors.cache.ExchangeContext.IGNITE_EXCHANGE_COMPATIBILITY_VER_1;
 
 /**
  *
@@ -384,7 +384,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testAffinitySimpleNoCacheOnCoordinator2() throws Exception {
-        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE, "true");
+        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, "true");
 
         try {
             cacheC = new IgniteClosure<String, CacheConfiguration[]>() {
@@ -435,7 +435,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             checkAffinity(3, topVer(7, 1), true);
         }
         finally {
-            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE);
+            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1);
         }
     }
 
@@ -655,7 +655,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testNodeLeaveExchangeWaitAffinityMessage() throws Exception {
-        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE, "true");
+        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, "true");
 
         try {
             Ignite ignite0 = startServer(0, 1);
@@ -692,7 +692,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             checkOrderCounters(3, topVer(5, 0));
         }
         finally {
-            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE);
+            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1);
         }
     }
 
@@ -1298,7 +1298,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     private void nodeLeftExchangeCoordinatorLeave(int nodes) throws Exception {
-        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE, "true");
+        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, "true");
 
         try {
             assert nodes > 2 : nodes;
@@ -1336,7 +1336,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             awaitPartitionMapExchange();
         }
         finally {
-            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE);
+            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1);
         }
     }
 
@@ -1445,7 +1445,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testDelayAssignmentAffinityChanged2() throws Exception {
-        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE, "true");
+        System.setProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, "true");
 
         try {
             Ignite ignite0 = startServer(0, 1);
@@ -1514,7 +1514,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
             }
         }
         finally {
-            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_MODE);
+            System.clearProperty(IGNITE_EXCHANGE_COMPATIBILITY_VER_1);
         }
     }
 

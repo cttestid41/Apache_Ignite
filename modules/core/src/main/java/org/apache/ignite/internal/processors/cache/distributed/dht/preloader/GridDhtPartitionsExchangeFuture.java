@@ -64,6 +64,7 @@ import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
 import org.apache.ignite.internal.processors.cache.ExchangeActions;
 import org.apache.ignite.internal.processors.cache.ExchangeContext;
+import org.apache.ignite.internal.processors.cache.ExchangeDiscoveryEvents;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
@@ -344,7 +345,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** {@inheritDoc} */
     @Override public AffinityTopologyVersion topologyVersion() {
-        assert isDone();
+        assert exchangeDone();
 
         return exchCtx.events().topologyVersion();
     }
@@ -536,13 +537,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             else
                 state = cctx.kernalContext().clientNode() ? ExchangeLocalState.CLIENT : ExchangeLocalState.SRV;
 
-            if (exchLog.isInfoEnabled())
+            if (exchLog.isInfoEnabled()) {
                 exchLog.info("Started exchange init [topVer=" + topVer +
                     ", crd=" + crdNode +
                     ", evt=" + IgniteUtils.gridEventName(discoEvt.type()) +
                     ", evtNode=" + discoEvt.eventNode().id() +
-                    ", customEvt=" + (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT ? ((DiscoveryCustomEvent)discoEvt).customMessage() : null) +
-                    ']');
+                    ", customEvt=" + (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT ? ((DiscoveryCustomEvent) discoEvt).customMessage() : null) +
+                    ", allowMerge=" + exchCtx.mergeExchanges() + ']');
+            }
 
             ExchangeType exchange;
 
@@ -1339,11 +1341,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     public boolean serverNodeDiscoveryEvent() {
         assert exchCtx != null;
 
-        return exchCtx.events().serverJoin() || exchCtx.events().serverLeft();
+        return exchCtx.events().hasServerJoin() || exchCtx.events().hasServerLeft();
     }
 
     /** {@inheritDoc} */
-    @Override public boolean isDone() {
+    @Override public boolean exchangeDone() {
         return done.get();
     }
 
@@ -1452,9 +1454,15 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             initFut.onDone(err == null);
 
-            if (exchId.isLeft()) {
-                for (CacheGroupContext grp : cctx.cache().cacheGroups())
-                    grp.affinityFunction().removeNode(exchId.nodeId());
+            ExchangeDiscoveryEvents evts = exchCtx.events();
+
+            if (evts.hasServerLeft()) {
+                for (DiscoveryEvent evt : exchCtx.events().events()) {
+                    if (evts.serverLeftEvent(evt)) {
+                        for (CacheGroupContext grp : cctx.cache().cacheGroups())
+                            grp.affinityFunction().removeNode(evt.eventNode().id());
+                    }
+                }
             }
 
             exchActions = null;
@@ -2156,11 +2164,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     }
                 }
 
-                assert exchCtx.events().serverJoin() || exchCtx.events().serverLeft();
+                assert exchCtx.events().hasServerJoin() || exchCtx.events().hasServerLeft();
 
                 exchCtx.events().processEvents(this);
 
-                if (exchCtx.events().serverLeft())
+                if (exchCtx.events().hasServerLeft())
                     idealAffDiff = cctx.affinity().onServerLeftWithExchangeMergeProtocol(this);
                 else
                     cctx.affinity().onServerJoinWithExchangeMergeProtocol(this, true);
@@ -2224,10 +2232,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
             else {
-                if (exchCtx.events().serverJoin())
+                if (exchCtx.events().hasServerJoin())
                     assignPartitionsStates();
 
-                if (exchCtx.events().serverLeft())
+                if (exchCtx.events().hasServerLeft())
                     detectLostPartitions(resTopVer);
             }
 
@@ -2242,7 +2250,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 msg.resultTopologyVersion(resTopVer);
 
-                if (exchCtx.events().serverLeft())
+                if (exchCtx.events().hasServerLeft())
                     msg.idealAffinityDiff(idealAffDiff);
             }
 
@@ -2643,7 +2651,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 if (localJoinExchange())
                     cctx.affinity().onLocalJoin(this, msg, resTopVer);
                 else {
-                    if (exchCtx.events().serverLeft())
+                    if (exchCtx.events().hasServerLeft())
                         cctx.affinity().mergeExchangesOnServerLeft(this, msg);
                     else
                         cctx.affinity().onServerJoinWithExchangeMergeProtocol(this, false);

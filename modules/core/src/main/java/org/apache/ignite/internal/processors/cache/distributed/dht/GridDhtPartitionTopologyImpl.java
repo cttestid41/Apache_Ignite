@@ -61,8 +61,6 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.events.EventType.EVT_CACHE_REBALANCE_PART_DATA_LOST;
-import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
-import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState.EVICTED;
 import static org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtPartitionState.LOST;
@@ -463,9 +461,11 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         lastTopChangeVer = readyTopVer = evts.topologyVersion();
                     }
 
-                    for (DiscoveryEvent evt : evts.events()) {
-                        if ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()))
-                            removeNode(evt.eventNode().id());
+                    if (evts.hasServerLeft()) {
+                        for (DiscoveryEvent evt : evts.events()) {
+                            if (evts.serverLeftEvent(evt))
+                                removeNode(evt.eventNode().id());
+                        }
                     }
 
                     ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();

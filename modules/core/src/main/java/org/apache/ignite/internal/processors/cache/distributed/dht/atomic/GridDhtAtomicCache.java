@@ -1787,7 +1787,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     if (!req.topologyLocked()) {
                         // Can not wait for topology future since it will break
                         // GridNearAtomicCheckUpdateRequest processing.
-                        remap = !top.topologyVersionFuture().isDone() ||
+                        remap = !top.topologyVersionFuture().exchangeDone() ||
                             needRemap(req.topologyVersion(), top.readyTopologyVersion());
                     }
 

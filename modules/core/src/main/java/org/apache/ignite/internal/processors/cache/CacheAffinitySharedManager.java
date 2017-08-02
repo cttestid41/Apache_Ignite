@@ -1347,7 +1347,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         final ExchangeDiscoveryEvents evts = fut.context().events();
 
         assert fut.context().mergeExchanges();
-        assert evts.serverJoin() && !evts.serverLeft();
+        assert evts.hasServerJoin() && !evts.hasServerLeft();
 
         WaitRebalanceInfo waitRebalanceInfo = initAffinityOnNodeJoin(fut, crd);
 
@@ -1374,7 +1374,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         final ExchangeDiscoveryEvents evts = fut.context().events();
 
         assert fut.context().mergeExchanges();
-        assert evts.serverLeft();
+        assert evts.hasServerLeft();
 
         forAllRegisteredCacheGroups(new IgniteInClosureX<CacheGroupDescriptor>() {
             @Override public void applyx(CacheGroupDescriptor desc) throws IgniteCheckedException {

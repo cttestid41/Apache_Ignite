@@ -33,7 +33,7 @@ import static org.apache.ignite.internal.processors.cache.GridCachePartitionExch
  */
 public class ExchangeContext {
     /** */
-    public static final String IGNITE_EXCHANGE_COMPATIBILITY_MODE = "IGNITE_EXCHANGE_COMPATIBILITY_MODE";
+    public static final String IGNITE_EXCHANGE_COMPATIBILITY_VER_1 = "IGNITE_EXCHANGE_COMPATIBILITY_VER_1";
 
     /** */
     private Set<Integer> requestGrpsAffOnJoin;
@@ -48,7 +48,7 @@ public class ExchangeContext {
     private final ExchangeDiscoveryEvents evts;
 
     /** */
-    private final boolean compatibilityNode = IgniteSystemProperties.getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_MODE, false);
+    private final boolean compatibilityNode = IgniteSystemProperties.getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, false);
 
     /**
      * @param fut Exchange future.

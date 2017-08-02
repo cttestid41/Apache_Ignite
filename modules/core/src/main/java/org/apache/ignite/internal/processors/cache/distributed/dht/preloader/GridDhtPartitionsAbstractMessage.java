@@ -103,6 +103,9 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
         return exchId;
     }
 
+    /**
+     * @param exchId Exchange ID.
+     */
     public void exchangeId(GridDhtPartitionExchangeId exchId) {
         this.exchId = exchId;
     }
@@ -134,10 +137,16 @@ public abstract class GridDhtPartitionsAbstractMessage extends GridCacheMessage 
         flags = compressed ? (byte)(flags | COMPRESSED_FLAG_MASK) : (byte)(flags & ~COMPRESSED_FLAG_MASK);
     }
 
-    public void restoreState(boolean restoreState) {
+    /**
+     * @param restoreState Restore exchange state flag.
+     */
+    void restoreState(boolean restoreState) {
         flags = restoreState ? (byte)(flags | RESTORE_STATE_FLAG_MASK) : (byte)(flags & ~RESTORE_STATE_FLAG_MASK);
     }
 
+    /**
+     * @return Restore exchange state flag.
+     */
     public boolean restoreState() {
         return (flags & RESTORE_STATE_FLAG_MASK) != 0;
     }
