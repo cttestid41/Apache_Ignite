@@ -117,33 +117,24 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     /**
      * @param cctx Context.
      * @param grpId Group ID.
-     * @param exchFut Exchange ID.
      * @param similarAffKey Key to find caches with similar affinity.
      */
     public GridClientPartitionTopology(
-        GridCacheSharedContext cctx,
+        GridCacheSharedContext<?, ?> cctx,
         int grpId,
-        GridDhtPartitionsExchangeFuture exchFut,
         Object similarAffKey
     ) {
         this.cctx = cctx;
         this.grpId = grpId;
         this.similarAffKey = similarAffKey;
 
-        topVer = exchFut.initialVersion();
-
-        discoCache = exchFut.discoCache();
+        topVer = AffinityTopologyVersion.NONE;
 
         log = cctx.logger(getClass());
 
-        lock.writeLock().lock();
-
-        try {
-            beforeExchange0(cctx.localNode(), exchFut);
-        }
-        finally {
-            lock.writeLock().unlock();
-        }
+        node2part = new GridDhtPartitionFullMap(cctx.localNode().id(),
+            cctx.localNode().order(),
+            updateSeq.get());
     }
 
     /**
@@ -198,7 +189,8 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         try {
             AffinityTopologyVersion exchTopVer = exchFut.initialVersion();
 
-            assert exchTopVer.compareTo(topVer) > 0 : "Invalid topology version [topVer=" + topVer +
+            assert exchTopVer.compareTo(topVer) > 0 : "Invalid topology version [grp=" + grpId +
+                ", topVer=" + topVer +
                 ", exchVer=" + exchTopVer + ']';
 
             this.stopping = stopping;
@@ -283,6 +275,9 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         }
     }
 
+    /**
+     * @param aff Affinity.
+     */
     private void createMovingPartitions(AffinityAssignment aff) {
         for (Map.Entry<UUID, GridDhtPartitionMap> e : node2part.entrySet()) {
             GridDhtPartitionMap map = e.getValue();
@@ -292,6 +287,10 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         }
     }
 
+    /**
+     * @param map Node partition state map.
+     * @param parts Partitions assigned to node.
+     */
     private void addMoving(GridDhtPartitionMap map, Set<Integer> parts) {
         if (F.isEmpty(parts))
             return;
@@ -311,11 +310,12 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
     private void beforeExchange0(ClusterNode loc, GridDhtPartitionsExchangeFuture exchFut) {
         GridDhtPartitionExchangeId exchId = exchFut.exchangeId();
 
-        assert topVer.equals(exchId.topologyVersion()) : "Invalid topology version [topVer=" +
-            topVer + ", exchId=" + exchId + ']';
-
-        if (exchId.isLeft() && exchFut.serverNodeDiscoveryEvent())
-            removeNode(exchId.nodeId());
+        if (exchFut.context().events().hasServerLeft()) {
+            for (DiscoveryEvent evt : exchFut.context().events().events()) {
+                if (ExchangeDiscoveryEvents.serverLeftEvent(evt))
+                    removeNode(evt.eventNode().id());
+            }
+        }
 
         // In case if node joins, get topology at the time of joining node.
         ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
@@ -980,12 +980,10 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         assert nodeId != null;
         assert lock.writeLock().isHeldByCurrentThread();
 
-        ClusterNode oldest = discoCache.oldestAliveServerNodeWithCache();
-
         ClusterNode loc = cctx.localNode();
 
         if (node2part != null) {
-            if (oldest.equals(loc) && !node2part.nodeId().equals(loc.id())) {
+            if (!node2part.nodeId().equals(loc.id())) {
                 updateSeq.setIfGreater(node2part.updateSequence());
 
                 node2part = new GridDhtPartitionFullMap(loc.id(), loc.order(), updateSeq.incrementAndGet(),

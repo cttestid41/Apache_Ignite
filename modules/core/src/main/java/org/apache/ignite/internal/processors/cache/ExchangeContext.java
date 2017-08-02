@@ -19,12 +19,13 @@ package org.apache.ignite.internal.processors.cache;
 
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.jetbrains.annotations.Nullable;
 
+import static org.apache.ignite.IgniteSystemProperties.getBoolean;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 import static org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager.exchangeProtocolVersion;
 
@@ -35,20 +36,20 @@ public class ExchangeContext {
     /** */
     public static final String IGNITE_EXCHANGE_COMPATIBILITY_VER_1 = "IGNITE_EXCHANGE_COMPATIBILITY_VER_1";
 
-    /** */
+    /** Cache groups to request affinity for during local join exchange. */
     private Set<Integer> requestGrpsAffOnJoin;
 
-    /** */
+    /** Per-group affinity fetch on join (old protocol). */
     private boolean fetchAffOnJoin;
 
-    /** */
+    /** Merges allowed flag. */
     private final boolean merge;
 
     /** */
     private final ExchangeDiscoveryEvents evts;
 
     /** */
-    private final boolean compatibilityNode = IgniteSystemProperties.getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, false);
+    private final boolean compatibilityNode = getBoolean(IGNITE_EXCHANGE_COMPATIBILITY_VER_1, false);
 
     /**
      * @param crd Coordinator flag.
@@ -121,5 +122,10 @@ public class ExchangeContext {
      */
     public boolean mergeExchanges() {
         return merge;
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(ExchangeContext.class, this);
     }
 }

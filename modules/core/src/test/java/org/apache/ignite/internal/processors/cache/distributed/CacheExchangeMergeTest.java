@@ -475,7 +475,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
                 return null;
             }
-        }, 1, "start-srv");
+        }, 1, "start-client");
 
         fut1.get();
         fut2.get();

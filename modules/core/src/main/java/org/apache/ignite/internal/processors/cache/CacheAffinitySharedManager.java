@@ -1677,7 +1677,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                             aff.initialize(topVer, assign);
                         }
 
-                        grpHolder.topology(fut).beforeExchange(fut, true, false);
+                        grpHolder.topology().beforeExchange(fut, true, false);
                     }
                     else {
                         List<GridDhtPartitionsExchangeFuture> exchFuts = cctx.exchange().exchangeFutures();
@@ -1738,7 +1738,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                             aff.initialize(topVer, assign);
                         }
 
-                        grpHolder.topology(fut).beforeExchange(fut, true, false);
+                        grpHolder.topology().beforeExchange(fut, true, false);
                     }
                 }
 
@@ -1828,7 +1828,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
             return null;
         }
         else {
-            final WaitRebalanceInfo waitRebalanceInfo = new WaitRebalanceInfo(evts.waitRebalanceEventVersion());
+            final WaitRebalanceInfo waitRebalanceInfo = new WaitRebalanceInfo(evts.lastServerEventVersion());
 
             forAllRegisteredCacheGroups(new IgniteInClosureX<CacheGroupDescriptor>() {
                 @Override public void applyx(CacheGroupDescriptor desc) throws IgniteCheckedException {
@@ -1856,7 +1856,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                         Map<UUID, GridDhtPartitionMap> map = affinityFullMap(aff);
 
                         for (GridDhtPartitionMap map0 : map.values())
-                            cache.topology(fut).update(fut.exchangeId(), map0, true);
+                            cache.topology().update(fut.exchangeId(), map0, true);
                     }
                 }
             });
@@ -2060,7 +2060,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         final IgniteClosure<ClusterNode, T> c,
         final boolean initAff)
         throws IgniteCheckedException {
-        final WaitRebalanceInfo waitRebalanceInfo = new WaitRebalanceInfo(fut.context().events().waitRebalanceEventVersion());
+        final WaitRebalanceInfo waitRebalanceInfo = new WaitRebalanceInfo(fut.context().events().lastServerEventVersion());
 
         final Collection<ClusterNode> aliveNodes = fut.context().events().discoveryCache().serverNodes();
 
@@ -2085,7 +2085,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
 
                 List<List<ClusterNode>> newAssignment0 = initAff ? new ArrayList<>(newAssignment) : null;
 
-                GridDhtPartitionTopology top = grpHolder.topology(fut);
+                GridDhtPartitionTopology top = grpHolder.topology();
 
                 Map<Integer, List<T>> cacheAssignment = null;
 
@@ -2194,8 +2194,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     /**
      * @return All registered cache groups.
      */
-    public Collection<CacheGroupDescriptor> cacheGroups() {
-        return caches.allGroups();
+    public Map<Integer, CacheGroupDescriptor> cacheGroups() {
+        return caches.registeredGrps;
     }
 
     /**
@@ -2293,10 +2293,9 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         /**
-         * @param fut Exchange future.
          * @return Cache topology.
          */
-        abstract GridDhtPartitionTopology topology(GridDhtPartitionsExchangeFuture fut);
+        abstract GridDhtPartitionTopology topology();
 
         /**
          * @return Affinity.
@@ -2331,7 +2330,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         /** {@inheritDoc} */
-        @Override public GridDhtPartitionTopology topology(GridDhtPartitionsExchangeFuture fut) {
+        @Override public GridDhtPartitionTopology topology() {
             return grp.topology();
         }
     }
@@ -2407,8 +2406,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         /** {@inheritDoc} */
-        @Override public GridDhtPartitionTopology topology(GridDhtPartitionsExchangeFuture fut) {
-            return cctx.exchange().clientTopology(groupId(), fut);
+        @Override public GridDhtPartitionTopology topology() {
+            return cctx.exchange().clientTopology(groupId());
         }
     }
 

@@ -30,6 +30,7 @@ import org.apache.ignite.internal.managers.discovery.DiscoCache;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.util.typedef.internal.CU;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 import static org.apache.ignite.events.EventType.EVT_NODE_FAILED;
@@ -38,42 +39,43 @@ import static org.apache.ignite.events.EventType.EVT_NODE_LEFT;
 import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 
 /**
- *
+ * Discovery events processed in single exchange (contain multiple events if exchanges for multiple
+ * discovery events are merged into single exchange).
  */
 public class ExchangeDiscoveryEvents {
-    /** */
+    /** Last event version. */
     private AffinityTopologyVersion topVer;
 
-    /** */
+    /** Last server join/fail event version. */
     private AffinityTopologyVersion srvEvtTopVer;
 
-    /** */
+    /** Discovery data cache for last event. */
     private DiscoCache discoCache;
 
-    /** */
+    /** Last event. */
     private DiscoveryEvent lastEvt;
 
-    /** */
+    /** Last server join/fail event. */
     private DiscoveryEvent lastSrvEvt;
 
-    /** */
+    /** All events. */
     private List<DiscoveryEvent> evts = new ArrayList<>();
 
-    /** */
+    /** Server join flag. */
     private boolean srvJoin;
 
-    /** */
+    /** Sever left flag. */
     private boolean srvLeft;
 
     /**
-     * @param fut Future.
+     * @param fut Current exchange future.
      */
     ExchangeDiscoveryEvents(GridDhtPartitionsExchangeFuture fut) {
         addEvent(fut.initialVersion(), fut.discoveryEvent(), fut.discoCache());
     }
 
     /**
-     * @param fut Current future.
+     * @param fut Current exchange future.
      */
     public void processEvents(GridDhtPartitionsExchangeFuture fut) {
         for (DiscoveryEvent evt : evts) {
@@ -85,8 +87,14 @@ public class ExchangeDiscoveryEvents {
             warnNoAffinityNodes(fut.sharedContext());
     }
 
+    /**
+     * @param nodeId Node ID.
+     * @return {@code True} if has join event for give node.
+     */
     public boolean nodeJoined(UUID nodeId) {
-        for (DiscoveryEvent evt : evts) {
+        for (int i = 0; i < evts.size(); i++) {
+            DiscoveryEvent evt = evts.get(i);
+
             if (evt.type() == EVT_NODE_JOINED && nodeId.equals(evt.eventNode().id()))
                 return true;
         }
@@ -94,11 +102,23 @@ public class ExchangeDiscoveryEvents {
         return false;
     }
 
-    public AffinityTopologyVersion waitRebalanceEventVersion() {
-        return srvEvtTopVer != null ? srvEvtTopVer : topVer;
+    /**
+     * @return Last server join/fail event version.
+     */
+    AffinityTopologyVersion lastServerEventVersion() {
+        assert srvEvtTopVer != null;
+
+        return srvEvtTopVer;
     }
 
+    /**
+     * @param topVer Event version.
+     * @param evt Event.
+     * @param cache Discovery data cache for given topology version.
+     */
     void addEvent(AffinityTopologyVersion topVer, DiscoveryEvent evt, DiscoCache cache) {
+        assert evts.isEmpty() || topVer.compareTo(this.topVer) > 0 : topVer;
+
         evts.add(evt);
 
         this.topVer = topVer;
@@ -124,39 +144,60 @@ public class ExchangeDiscoveryEvents {
         }
     }
 
+    /**
+     * @return All events.
+     */
     public List<DiscoveryEvent> events() {
         return evts;
     }
 
-    public boolean serverLeftEvent(DiscoveryEvent evt) {
+    /**
+     * @param evt Event.
+     * @return {@code True} if given event is {@link EventType#EVT_NODE_FAILED} or {@link EventType#EVT_NODE_LEFT}.
+     */
+    public static boolean serverLeftEvent(DiscoveryEvent evt) {
         return  ((evt.type() == EVT_NODE_FAILED || evt.type() == EVT_NODE_LEFT) && !CU.clientNode(evt.eventNode()));
     }
 
-
+    /**
+     * @return Discovery data cache for last event.
+     */
     public DiscoCache discoveryCache() {
         return discoCache;
     }
 
-    public DiscoveryEvent lastEvent() {
+    /**
+     * @return Last event.
+     */
+    DiscoveryEvent lastEvent() {
         return lastSrvEvt != null ? lastSrvEvt : lastEvt;
     }
 
+    /**
+     * @return Last event version.
+     */
     public AffinityTopologyVersion topologyVersion() {
         return topVer;
     }
 
+    /**
+     * @return {@code True} if has event for server join.
+     */
     public boolean hasServerJoin() {
         return srvJoin;
     }
 
+    /**
+     * @return {@code True} if has event for server leave.
+     */
     public boolean hasServerLeft() {
         return srvLeft;
     }
 
     /**
-     *
+     * @param cctx Context.
      */
-    public void warnNoAffinityNodes(GridCacheSharedContext cctx) {
+    public void warnNoAffinityNodes(GridCacheSharedContext<?, ?> cctx) {
         List<String> cachesWithoutNodes = null;
 
         for (DynamicCacheDescriptor cacheDesc : cctx.cache().cacheDescriptors().values()) {
@@ -212,5 +253,10 @@ public class ExchangeDiscoveryEvents {
 
             U.quietAndWarn(log, "Must have server nodes for caches to operate.");
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override public String toString() {
+        return S.toString(ExchangeDiscoveryEvents.class, this);
     }
 }

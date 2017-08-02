@@ -121,6 +121,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** */
     @GridToStringExclude
+    private final Object mux = new Object();
+
+    /** */
+    @GridToStringExclude
     private volatile DiscoCache discoCache;
 
     /** Discovery event. */
@@ -129,10 +133,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** */
     @GridToStringExclude
     private final Set<UUID> remaining = new HashSet<>();
-
-    /** */
-    @GridToStringExclude
-    private final Object mux = new Object();
 
     /** Guarded by this */
     @GridToStringExclude
@@ -173,6 +173,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** Last committed cache version before next topology version use. */
     private AtomicReference<GridCacheVersion> lastVer = new AtomicReference<>();
+
+    /** */
+    @GridToStringExclude
+    private GridDhtPartitionsSingleMessage pendingJoinMsg;
 
     /**
      * Messages received on non-coordinator are stored in case if this node
@@ -258,10 +262,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** */
     @GridToStringExclude
     private GridDhtPartitionsExchangeFuture mergedWith;
-
-    /** */
-    @GridToStringExclude
-    private GridDhtPartitionsSingleMessage pendingJoinMsg;
 
 
     /**
@@ -2179,14 +2179,14 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 else
                     cctx.affinity().onServerJoinWithExchangeMergeProtocol(this, true);
 
-                for (CacheGroupDescriptor desc : cctx.affinity().cacheGroups()) {
+                for (CacheGroupDescriptor desc : cctx.affinity().cacheGroups().values()) {
                     if (desc.config().getCacheMode() == CacheMode.LOCAL)
                         continue;
 
                     CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
 
                     GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                        cctx.exchange().clientTopology(desc.groupId(), this);
+                        cctx.exchange().clientTopology(desc.groupId());
 
                     top.beforeExchange(this, true, true);
                 }
@@ -2204,7 +2204,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
                     GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                        cctx.exchange().clientTopology(grpId, this);
+                        cctx.exchange().clientTopology(grpId);
 
                     Map<Integer, T2<Long, Long>> cntrs = msg.partitionUpdateCounters(grpId);
 
@@ -2721,7 +2721,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 ClusterNode oldest = cctx.discovery().oldestAliveCacheServerNode(AffinityTopologyVersion.NONE);
 
                 if (oldest != null && oldest.isLocal()) {
-                    cctx.exchange().clientTopology(grpId, this).update(resTopVer,
+                    cctx.exchange().clientTopology(grpId).update(resTopVer,
                         entry.getValue(),
                         cntrMap,
                         Collections.<Integer>emptySet(),
@@ -2745,7 +2745,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
 
             GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                cctx.exchange().clientTopology(grpId, this);
+                cctx.exchange().clientTopology(grpId);
 
             top.update(exchId, entry.getValue(), false);
         }

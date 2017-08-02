@@ -707,10 +707,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
     /**
      * @param grpId Cache group ID.
-     * @param exchFut Exchange future.
      * @return Topology.
      */
-    public GridDhtPartitionTopology clientTopology(int grpId, GridDhtPartitionsExchangeFuture exchFut) {
+    public GridDhtPartitionTopology clientTopology(int grpId) {
         GridClientPartitionTopology top = clientTops.get(grpId);
 
         if (top != null)
@@ -718,7 +717,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
         Object affKey = null;
 
-        CacheGroupDescriptor grpDesc = cctx.cache().cacheGroupDescriptors().get(grpId);
+        CacheGroupDescriptor grpDesc = cctx.affinity().cacheGroups().get(grpId);
 
         if (grpDesc != null) {
             CacheConfiguration<?, ?> ccfg = grpDesc.config();
@@ -732,7 +731,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         }
 
         GridClientPartitionTopology old = clientTops.putIfAbsent(grpId,
-            top = new GridClientPartitionTopology(cctx, grpId, exchFut, affKey));
+            top = new GridClientPartitionTopology(cctx, grpId, affKey));
 
         return old != null ? old : top;
     }
