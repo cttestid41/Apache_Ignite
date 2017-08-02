@@ -1884,10 +1884,12 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      * @return {@code False} if interrupted.
      */
-    private synchronized boolean awaitSingleMapUpdates() {
+    private boolean awaitSingleMapUpdates() {
         try {
-            while (pendingSingleUpdates > 0)
-                U.wait(mux);
+            synchronized (mux) {
+                while (pendingSingleUpdates > 0)
+                    U.wait(mux);
+            }
 
             return true;
         }

@@ -116,6 +116,9 @@ public class ExchangeContext {
         return requestGrpsAffOnJoin;
     }
 
+    /**
+     * @return {@code True} if exchanges merge is allowed during current exchange.
+     */
     public boolean mergeExchanges() {
         return merge;
     }

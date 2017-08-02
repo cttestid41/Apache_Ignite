@@ -22,6 +22,9 @@ import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
+import org.apache.ignite.internal.util.future.GridFutureAdapter;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -29,22 +32,39 @@ import org.jetbrains.annotations.Nullable;
  * safe to use when all transactions that involve moving primary partitions are completed and partition map
  * exchange is also completed.
  * <p/>
- * When new new transaction is started, it will wait for this future before acquiring new locks on particular
+ * When new new cache operation is started, it will wait for this future before acquiring new locks on particular
  * topology version.
  */
 public interface GridDhtTopologyFuture extends IgniteInternalFuture<AffinityTopologyVersion> {
     /**
-     * Gets topology version of this future.
+     * Returns topology version when exchange started. It can differ from result topology version if exchanges for
+     * multiple discovery events are merged. Initial version should not be used as version for cache operation
+     * since it is possible affinity for this version is never calculated.
      *
-     * @return Topology version.
+     * @return Topology version when exchange started.
+     */
+    public AffinityTopologyVersion initialVersion();
+
+    /**
+     * Gets result topology version of this future. Result version can differ from initial exchange version
+     * if excanges for multiple discovery events are merged, in this case result version is version of last
+     * discovery event.
+     * <p>
+     * This method should be called only for finished topology future
+     * since result version is not known before exchange finished.
+     *
+     * @return Result topology version.
      */
     public AffinityTopologyVersion topologyVersion();
 
     /**
-     * @return Version when exchange started.
+     * Ready affinity future ({@link GridCachePartitionExchangeManager#affinityReadyFuture(AffinityTopologyVersion)}
+     * is completed before {@link GridFutureAdapter#onDone(Object, Throwable)} is called on
+     * {@link GridDhtPartitionsExchangeFuture}, it is guaranteed that this method will return {@code true}
+     * if affinity ready future is finished.
+     *
+     * @return {@code True} if exchange is finished and result topology version can be used.
      */
-    public AffinityTopologyVersion initialVersion();
-
     public boolean exchangeDone();
 
     /**
