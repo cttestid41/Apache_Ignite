@@ -666,10 +666,10 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             List<List<ClusterNode>> aff = grp.affinity().readyAssignments(topVer);
 
-            updateRebalanceVersion(aff);
-
             if (node2part != null && node2part.valid())
                 changed |= checkEvictions(updateSeq, topVer, aff);
+
+            updateRebalanceVersion(aff);
 
             consistencyCheck();
         }
