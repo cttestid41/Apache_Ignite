@@ -258,6 +258,8 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
             if (stopping)
                 return;
 
+            discoCache = exchFut.discoCache();
+
             beforeExchange0(loc, exchFut);
 
             if (updateMoving) {

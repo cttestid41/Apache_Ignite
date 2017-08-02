@@ -36,6 +36,7 @@ import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.cluster.ClusterTopologyException;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
@@ -1203,20 +1204,25 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         Map<Object, Object> map = new HashMap<>();
 
-        try (Transaction tx = node.transactions().txStart(concurrency, isolation)) {
-            for (int i = 0; i < 5; i++) {
-                Integer key = rnd.nextInt(20_000);
+        try {
+            try (Transaction tx = node.transactions().txStart(concurrency, isolation)) {
+                for (int i = 0; i < 5; i++) {
+                    Integer key = rnd.nextInt(20_000);
 
-                cache.put(key, i);
+                    cache.put(key, i);
 
-                Object val = cache.get(key);
+                    Object val = cache.get(key);
 
-                assertEquals(i, val);
+                    assertEquals(i, val);
 
-                map.put(key, val);
+                    map.put(key, val);
+                }
+
+                tx.commit();
             }
-
-            tx.commit();
+        }
+        catch (ClusterTopologyException ignore) {
+            // No-op.
         }
 
         for (Map.Entry<Object, Object> e : map.entrySet())
