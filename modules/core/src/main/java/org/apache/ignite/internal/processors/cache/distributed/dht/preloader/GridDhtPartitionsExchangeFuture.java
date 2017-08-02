@@ -1454,9 +1454,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             initFut.onDone(err == null);
 
-            ExchangeDiscoveryEvents evts = exchCtx.events();
+            if (exchCtx != null && exchCtx.events().hasServerLeft()) {
+                ExchangeDiscoveryEvents evts = exchCtx.events();
 
-            if (evts.hasServerLeft()) {
                 for (DiscoveryEvent evt : exchCtx.events().events()) {
                     if (evts.serverLeftEvent(evt)) {
                         for (CacheGroupContext grp : cctx.cache().cacheGroups())

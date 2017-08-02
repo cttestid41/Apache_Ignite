@@ -132,6 +132,10 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         IgniteSystemProperties.getInteger(IgniteSystemProperties.IGNITE_EXCHANGE_HISTORY_SIZE, 1_000);
 
     /** */
+    private final long IGNITE_EXCHANGE_MERGE_DELAY =
+        IgniteSystemProperties.getLong(IgniteSystemProperties.IGNITE_EXCHANGE_MERGE_DELAY, 0);
+
+    /** */
     private static final IgniteProductVersion EXCHANGE_PROTOCOL_2_SINCE = IgniteProductVersion.fromString("2.2.0");
 
     /** Atomic reference for pending partition resend timeout object. */
@@ -1815,6 +1819,17 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
      * @return {@code False} if need wait messages for merged exchanges.
      */
     public boolean mergeExchangesOnCoordinator(GridDhtPartitionsExchangeFuture curFut) {
+        if (IGNITE_EXCHANGE_MERGE_DELAY > 0) {
+            try {
+                U.sleep(IGNITE_EXCHANGE_MERGE_DELAY);
+            }
+            catch (IgniteInterruptedCheckedException e) {
+                U.warn(log, "Failed to wait for exchange merge, thread interrupted: " + e);
+
+                return true;
+            }
+        }
+
         AffinityTopologyVersion exchMergeTestWaitVer = this.exchMergeTestWaitVer;
 
         if (exchMergeTestWaitVer != null) {

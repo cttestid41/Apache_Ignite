@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteSystemProperties;
 import org.apache.ignite.cache.CacheAtomicityMode;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
@@ -44,11 +45,15 @@ import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteKernal;
 import org.apache.ignite.internal.IgniteNodeAttributes;
+import org.apache.ignite.internal.TestDelayingCommunicationSpi;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
+import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsAbstractMessage;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsSingleRequest;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
@@ -65,6 +70,7 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
+import org.eclipse.jetty.util.ConcurrentHashSet;
 
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
@@ -89,6 +95,9 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     private boolean testSpi;
 
     /** */
+    private boolean testDelaySpi;
+
+    /** */
     private static String[] cacheNames = {"c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"};
 
     /** */
@@ -108,6 +117,8 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         if (testSpi)
             cfg.setCommunicationSpi(new TestRecordingCommunicationSpi());
+        else if (testDelaySpi)
+            cfg.setCommunicationSpi(new TestDelayExchangeMessagesSpi());
 
         Boolean clientMode = client.get();
 
@@ -185,11 +196,204 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     // TODO IGNITE-5578 joined merged node failed (client/server).
-    // TODO IGNITE-5578 random topology changes, random delay for exchange messages.
     // TODO IGNITE-5578 check exchanges/affinity consistency.
-    // TODO IGNITE-5578 join with start cache, merge with fail
-    // TODO IGNITE-5578 join with start cache, merge with join, coordinator left
-    // TODO IGNITE-5578 join with start cache, merge with join, become coordinator
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testDelayExchangeMessages() throws Exception {
+        testDelaySpi = true;
+
+        System.setProperty(IgniteSystemProperties.IGNITE_EXCHANGE_MERGE_DELAY, "2000");
+
+        try {
+            final int srvs = 6;
+            final int clients = 3;
+
+            startGridsMultiThreaded(srvs);
+
+            for (int i = 0; i < clients; i++) {
+                client.set(true);
+
+                startGrid(srvs + i);
+            }
+
+            final int initNodes = srvs + clients;
+
+            final AtomicInteger stopIdx = new AtomicInteger();
+
+            IgniteInternalFuture stopFut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                @Override public Void call() throws Exception {
+                    Thread.sleep(ThreadLocalRandom.current().nextLong(500) + 1);
+
+                    stopGrid(stopIdx.incrementAndGet());
+
+                    return null;
+                }
+            }, 3, "stop-srv");
+
+            final AtomicInteger startIdx = new AtomicInteger(initNodes);
+
+            IgniteInternalFuture startFut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                @Override public Void call() throws Exception {
+                    ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+                    int nodeIdx = startIdx.incrementAndGet();
+
+                    if (rnd.nextInt(3) == 0) {
+                        log.info("Start client: " + nodeIdx);
+
+                        client.set(true);
+                    }
+                    else
+                        log.info("Start server: " + nodeIdx);
+
+                    startGrid(nodeIdx);
+
+                    if (rnd.nextBoolean()) {
+                        log.info("Stop started node: " + nodeIdx);
+
+                        stopGrid(nodeIdx);
+                    }
+
+                    return null;
+                }
+            }, 5, "start-node");
+
+            stopFut.get();
+
+            checkCaches();
+        }
+        finally {
+            System.clearProperty(IgniteSystemProperties.IGNITE_EXCHANGE_MERGE_DELAY);
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeStartRandomClientsServers() throws Exception {
+        for (int iter = 0; iter < 3; iter++) {
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+            final int srvs = rnd.nextInt(3) + 1;
+            final int clients = rnd.nextInt(3);
+
+            log.info("Iteration [iter=" + iter + ", srvs=" + srvs + ", clients=" + clients + ']');
+
+            Ignite srv0 = startGrids(srvs);
+
+            for (int i = 0; i < clients; i++) {
+                client.set(true);
+
+                startGrid(srvs + i);
+            }
+
+            final int threads = 8;
+
+            final int initNodes = srvs + clients;
+
+            mergeExchangeWaitVersion(srv0, initNodes + threads);
+
+            final AtomicInteger idx = new AtomicInteger(initNodes);
+
+            IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                @Override public Void call() throws Exception {
+                    ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+                    int nodeIdx = idx.incrementAndGet();
+
+                    if (rnd.nextInt(3) == 0) {
+                        log.info("Start client: " + nodeIdx);
+
+                        client.set(true);
+                    }
+                    else
+                        log.info("Start server: " + nodeIdx);
+
+                    startGrid(nodeIdx);
+
+                    return null;
+                }
+            }, threads, "test-thread");
+
+            fut.get();
+
+            checkCaches();
+
+            stopAllGrids();
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeStartStopRandomClientsServers() throws Exception {
+        for (int iter = 0; iter < 3; iter++) {
+            final int srvs = 5;
+            final int clients = 5;
+
+            Ignite srv0 = startGrids(srvs);
+
+            for (int i = 0; i < clients; i++) {
+                client.set(true);
+
+                startGrid(srvs + i);
+            }
+
+            final int threads = 8;
+
+            final int initNodes = srvs + clients;
+
+            mergeExchangeWaitVersion(srv0, initNodes + threads);
+
+            final AtomicInteger idx = new AtomicInteger(initNodes);
+
+            final ConcurrentHashSet<Integer> stopNodes = new ConcurrentHashSet<>();
+
+            IgniteInternalFuture fut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                @Override public Void call() throws Exception {
+                    ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+                    if (rnd.nextBoolean()) {
+                        Integer stopIdx;
+
+                        for (;;) {
+                            stopIdx = rnd.nextInt(initNodes - 1) + 1;
+
+                            if (stopNodes.add(stopIdx))
+                                break;
+                        }
+
+                        log.info("Stop node: " + stopIdx);
+
+                        stopGrid(getTestIgniteInstanceName(stopIdx), true, false);
+                    }
+                    else {
+                        int nodeIdx = idx.incrementAndGet();
+
+                        if (rnd.nextInt(5) == 0) {
+                            log.info("Start client: " + nodeIdx);
+
+                            client.set(true);
+                        }
+                        else
+                            log.info("Start server: " + nodeIdx);
+
+                        startGrid(nodeIdx);
+                    }
+
+                    return null;
+                }
+            }, threads, "test-thread");
+
+            fut.get();
+
+            checkCaches();
+
+            stopAllGrids();
+        }
+    }
 
     /**
      * @throws Exception If failed.
@@ -324,6 +528,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         checkCaches();
     }
+
+    // TODO IGNITE-5578 join with start cache, merge with fail
+    // TODO IGNITE-5578 join with start cache, merge with join, coordinator left
+    // TODO IGNITE-5578 join with start cache, merge with join, become coordinator
 
     /**
      * @throws Exception If failed.
@@ -1034,5 +1242,19 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
          * Coordinator failed, but one of servers (not new coordinator) received full message.
          */
         NON_CRD_RCVD
+    }
+
+    /**
+     *
+     */
+
+    static class TestDelayExchangeMessagesSpi extends TestDelayingCommunicationSpi {
+        /** {@inheritDoc} */
+        @Override protected boolean delayMessage(Message msg, GridIoMessage ioMsg) {
+            if (msg instanceof GridDhtPartitionsAbstractMessage)
+                return ((GridDhtPartitionsAbstractMessage)msg).exchangeId() != null || (msg instanceof GridDhtPartitionsSingleRequest);
+
+            return false;
+        }
     }
 }
