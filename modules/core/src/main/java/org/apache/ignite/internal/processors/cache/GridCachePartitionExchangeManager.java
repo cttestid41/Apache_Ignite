@@ -641,6 +641,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
     /** {@inheritDoc} */
     @Override protected void onKernalStop0(boolean cancel) {
+        exchWorker.onKernalStop();
+
         cctx.gridEvents().removeDiscoveryEventListener(discoLsnr);
 
         cctx.io().removeHandler(false, 0, GridDhtPartitionsSingleMessage.class);
@@ -1767,11 +1769,18 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         this.exchMergeTestWaitVer = exchMergeTestWaitVer;
     }
 
-    public void mergeExchanges(final GridDhtPartitionsExchangeFuture curFut, GridDhtPartitionsFullMessage msg)
+    /**
+     * @param curFut Current exchange future.
+     * @param msg Message.
+     * @return {@code True} if node is stopping.
+     * @throws IgniteInterruptedCheckedException If interrupted.
+     */
+    public boolean mergeExchanges(final GridDhtPartitionsExchangeFuture curFut, GridDhtPartitionsFullMessage msg)
         throws IgniteInterruptedCheckedException {
         AffinityTopologyVersion resVer = msg.resultTopologyVersion();
 
-        exchWorker.waitForExchangeFuture(resVer);
+        if (exchWorker.waitForExchangeFuture(resVer))
+            return true;
 
         for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {
             if (task instanceof GridDhtPartitionsExchangeFuture) {
@@ -1811,6 +1820,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
         assert evts.topologyVersion().equals(resVer) : "Invalid exchange merge result [ver=" + evts.topologyVersion()
             + ", expVer=" + resVer + ']';
+
+        return false;
     }
 
     /**
@@ -1944,6 +1955,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         /** */
         private boolean crd;
 
+        /** */
+        private boolean stop;
+
         /**
          * Constructor.
          */
@@ -1989,13 +2003,36 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 log.debug("Added exchange future to exchange worker: " + exchFut);
         }
 
-        private void waitForExchangeFuture(AffinityTopologyVersion resVer) throws IgniteInterruptedCheckedException {
+        /**
+         *
+         */
+        private void onKernalStop() {
             synchronized (this) {
-                while (lastFutVer.compareTo(resVer) < 0)
-                    U.wait(this);
+                stop = true;
+
+                notifyAll();
             }
         }
 
+        /**
+         * @param resVer Version to wait for.
+         * @return {@code True} if node is stopping.
+         * @throws IgniteInterruptedCheckedException If interrupted.
+         */
+        private boolean waitForExchangeFuture(AffinityTopologyVersion resVer) throws IgniteInterruptedCheckedException {
+            synchronized (this) {
+                while (!stop && lastFutVer.compareTo(resVer) < 0)
+                    U.wait(this);
+
+                return stop;
+            }
+        }
+
+        /**
+         * @param resVer Exchange result version.
+         * @param exchFut Exchange future.
+         * @throws IgniteInterruptedCheckedException If interrupted.
+         */
         private void onExchangeDone(AffinityTopologyVersion resVer, GridDhtPartitionsExchangeFuture exchFut)
             throws IgniteInterruptedCheckedException {
             if (resVer.compareTo(exchFut.exchangeId().topologyVersion()) != 0) {

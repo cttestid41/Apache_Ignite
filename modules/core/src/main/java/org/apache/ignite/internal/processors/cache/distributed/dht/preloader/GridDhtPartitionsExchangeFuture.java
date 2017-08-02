@@ -2645,7 +2645,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                     resTopVer = msg.resultTopologyVersion();
 
-                    cctx.exchange().mergeExchanges(this, msg);
+                    if (cctx.exchange().mergeExchanges(this, msg)) {
+                        assert cctx.kernalContext().isStopping();
+
+                        return; // Node is stopping, no need to further process exchange.
+                    }
 
                     assert resTopVer.equals(exchCtx.events().topologyVersion()) :  "Unexpected result version [" +
                         "msgVer=" + resTopVer +
