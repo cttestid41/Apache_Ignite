@@ -105,7 +105,9 @@ public interface GridDhtPartitionTopology {
      * @param affReady Affinity ready flag.
      * @throws IgniteCheckedException If failed.
      */
-    public void beforeExchange(GridDhtPartitionsExchangeFuture exchFut, boolean affReady)
+    public void beforeExchange(GridDhtPartitionsExchangeFuture exchFut,
+        boolean affReady,
+        boolean updateMoving)
         throws IgniteCheckedException;
 
     /**

@@ -1053,6 +1053,13 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @return All registered cache groups.
+     */
+    public Collection<CacheGroupDescriptor> cacheGroups() {
+        return caches.allGroups();
+    }
+
+    /**
      * @param c Cache closure.
      * @throws IgniteCheckedException If failed
      */
@@ -1657,7 +1664,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                             aff.initialize(topVer, assign);
                         }
 
-                        grpHolder.topology(fut).beforeExchange(fut, true);
+                        grpHolder.topology(fut).beforeExchange(fut, true, false);
                     }
                     else {
                         List<GridDhtPartitionsExchangeFuture> exchFuts = cctx.exchange().exchangeFutures();
@@ -1718,7 +1725,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                             aff.initialize(topVer, assign);
                         }
 
-                        grpHolder.topology(fut).beforeExchange(fut, true);
+                        grpHolder.topology(fut).beforeExchange(fut, true, false);
                     }
                 }
 

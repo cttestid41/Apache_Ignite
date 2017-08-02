@@ -433,7 +433,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public void beforeExchange(GridDhtPartitionsExchangeFuture exchFut, boolean affReady)
+    @Override public void beforeExchange(GridDhtPartitionsExchangeFuture exchFut,
+        boolean affReady,
+        boolean updateMoving)
         throws IgniteCheckedException {
         ClusterNode loc = ctx.localNode();
 
@@ -538,8 +540,11 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     consistencyCheck();
 
-                    if (affReady && oldest != null && oldest.isLocal())
+                    if (updateMoving) {
+                        assert grp.affinity().lastVersion().equals(evts.topologyVersion());
+
                         createMovingPartitions(grp.affinity().readyAffinity(evts.topologyVersion()));
+                    }
 
                     if (log.isDebugEnabled()) {
                         log.debug("Partition map after beforeExchange [exchId=" + exchFut.exchangeId() +
@@ -1272,7 +1277,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             node2part = partMap;
 
-            if (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0) {
+            if (exchangeResVer == null && (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0)) {
                 AffinityAssignment affAssignment = grp.affinity().readyAffinity(readyTopVer);
 
                 for (Map.Entry<UUID, GridDhtPartitionMap> e : partMap.entrySet()) {
@@ -1622,7 +1627,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         }
     }
 
-    public void createMovingPartitions(AffinityAssignment aff) {
+    private void createMovingPartitions(AffinityAssignment aff) {
         for (Map.Entry<UUID, GridDhtPartitionMap> e : node2part.entrySet()) {
             GridDhtPartitionMap map = e.getValue();
 

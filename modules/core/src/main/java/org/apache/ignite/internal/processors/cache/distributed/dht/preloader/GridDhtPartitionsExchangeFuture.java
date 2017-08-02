@@ -38,6 +38,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
+import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.events.DiscoveryEvent;
@@ -58,6 +59,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.affinity.GridAffinityAssignmentCache;
 import org.apache.ignite.internal.processors.cache.CacheAffinityChangeMessage;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
+import org.apache.ignite.internal.processors.cache.CacheGroupDescriptor;
 import org.apache.ignite.internal.processors.cache.CachePartitionExchangeWorkerTask;
 import org.apache.ignite.internal.processors.cache.DynamicCacheChangeBatch;
 import org.apache.ignite.internal.processors.cache.DynamicCacheDescriptor;
@@ -710,7 +712,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     if (grp.isLocal())
                         continue;
 
-                    grp.topology().beforeExchange(this, !centralizedAff);
+                    grp.topology().beforeExchange(this, !centralizedAff, false);
                 }
             }
         }
@@ -985,7 +987,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                 // It is possible affinity is not initialized yet if node joins to cluster.
                 if (grp.affinity().lastVersion().topologyVersion() > 0)
-                    grp.topology().beforeExchange(this, !centralizedAff);
+                    grp.topology().beforeExchange(this, !centralizedAff, false);
             }
         }
 
@@ -2110,7 +2112,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (!crd.equals(discoCache.serverNodes().get(0)) && !exchCtx.mergeExchanges()) {
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                     if (!grp.isLocal())
-                        grp.topology().beforeExchange(this, !centralizedAff);
+                        grp.topology().beforeExchange(this, !centralizedAff, false);
                 }
             }
 
@@ -2165,11 +2167,16 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 else
                     cctx.affinity().mergeExchangesOnServerJoin(this, true);
 
-                for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
-                    if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
+                for (CacheGroupDescriptor desc : cctx.affinity().cacheGroups()) {
+                    if (desc.config().getCacheMode() == CacheMode.LOCAL)
                         continue;
 
-                    grp.topology().beforeExchange(this, true);
+                    CacheGroupContext grp = cctx.cache().cacheGroup(desc.groupId());
+
+                    GridDhtPartitionTopology top = grp != null ? grp.topology() :
+                        cctx.exchange().clientTopology(desc.groupId(), this);
+
+                    top.beforeExchange(this, true, true);
                 }
             }
 
@@ -2200,38 +2207,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         resTopVer,
                         affReq,
                         joinedNodeAff);
-
-                    UUID nodeId = e.getKey();
-
-                    // If node requested affinity on join and partitions are not created, then
-                    // all affinity partitions should be in MOVING state.
-                    for (Integer grpId : affReq) {
-                        GridDhtPartitionMap partMap = msg.partitions().get(grpId);
-
-                        if (partMap == null || F.isEmpty(partMap.map())) {
-                            CacheGroupContext grp = cctx.cache().cacheGroup(grpId);
-
-                            GridDhtPartitionTopology top = grp != null ? grp.topology() :
-                                cctx.exchange().clientTopology(grpId, this);
-
-                            if (partMap == null) {
-                                partMap = new GridDhtPartitionMap(nodeId,
-                                    1L,
-                                    resTopVer,
-                                    new GridPartitionStateMap(),
-                                    false);
-                            }
-
-                            AffinityAssignment aff = cctx.affinity().affinity(grpId).cachedAffinity(resTopVer);
-
-                            for (int p = 0; p < aff.assignment().size(); p++) {
-                                if (aff.getIds(p).contains(nodeId))
-                                    partMap.put(p, GridDhtPartitionState.MOVING);
-                            }
-
-                            top.update(exchId, partMap, true);
-                        }
-                    }
                 }
             }
 
@@ -2679,7 +2654,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         if (grp.isLocal() || cacheGroupStopping(grp.groupId()))
                             continue;
 
-                        grp.topology().beforeExchange(this, true);
+                        grp.topology().beforeExchange(this, true, false);
                     }
                 }
             }
