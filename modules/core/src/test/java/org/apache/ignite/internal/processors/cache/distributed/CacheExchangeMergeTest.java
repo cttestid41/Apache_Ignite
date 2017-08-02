@@ -261,6 +261,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             }, 5, "start-node");
 
             stopFut.get();
+            startFut.get();
 
             checkCaches();
         }
