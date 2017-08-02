@@ -1235,7 +1235,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             @Override public boolean apply() {
                 return exch.lastTopologyFuture().initialVersion().topologyVersion() >= topVer;
             }
-        }, 5000);
+        }, 15_000);
 
         assertTrue(wait);
     }
