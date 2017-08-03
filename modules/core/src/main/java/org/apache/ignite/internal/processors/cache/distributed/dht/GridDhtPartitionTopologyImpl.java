@@ -2001,7 +2001,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
         assert oldest != null || ctx.kernalContext().clientNode();
 
         // If this node became the oldest node.
-        if (ctx.localNode().equals(oldest)) {
+        if (ctx.localNode().equals(oldest) && node2part != null) {
             long seq = node2part.updateSequence();
 
             if (seq != updateSeq) {

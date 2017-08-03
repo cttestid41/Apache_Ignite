@@ -303,6 +303,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * @return Future mutex.
+     */
+    public Object mutex() {
+        return mux;
+    }
+
+    /**
      * @return Shared cache context.
      */
     public GridCacheSharedContext sharedContext() {
@@ -1515,8 +1522,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         }
     }
 
+    /**
+     * @param node Joined node.
+     * @param msg Joined node message if already received.
+     * @return {@code True} if need wait for message from joined server node.
+     */
     private boolean addMergedJoinExchange(ClusterNode node, @Nullable GridDhtPartitionsSingleMessage msg) {
-        assert Thread.holdsLock(this);
+        assert Thread.holdsLock(mux);
         assert node != null;
         assert state == ExchangeLocalState.CRD : state;
 
@@ -1607,10 +1619,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     * @param node
-     * @param msg
+     * @param node Sender node.
+     * @param msg Message.
      */
-    void processMergedMessage(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
+    private void processMergedMessage(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         if (msg.client()) {
             waitAndReplyToClient(node.id(), msg);
 

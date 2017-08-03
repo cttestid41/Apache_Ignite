@@ -1880,7 +1880,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             this.exchMergeTestWaitVer = null;
         }
 
-        synchronized (curFut) {
+        synchronized (curFut.mutex()) {
             int awaited = 0;
 
             for (CachePartitionExchangeWorkerTask task : exchWorker.futQ) {

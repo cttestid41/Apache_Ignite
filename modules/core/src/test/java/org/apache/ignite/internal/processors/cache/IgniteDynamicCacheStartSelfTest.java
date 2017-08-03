@@ -481,12 +481,11 @@ public class IgniteDynamicCacheStartSelfTest extends GridCommonAbstractTest {
 
             startGrid(nodeCount() + 1);
 
+            awaitPartitionMapExchange();
+
             // Check that cache is not deployed on new node after undeploy.
             for (int g = 0; g < nodeCount() + 2; g++) {
                 final IgniteKernal kernal0 = (IgniteKernal)grid(g);
-
-                for (IgniteInternalFuture f : kernal0.context().cache().context().exchange().exchangeFutures())
-                    f.get();
 
                 assertNull(kernal0.cache(DYNAMIC_CACHE_NAME));
             }
