@@ -205,6 +205,9 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     /** */
     private final GridFutureAdapter<?> crdInitFut = new GridFutureAdapter();
 
+    /** For tests only. */
+    private volatile AffinityTopologyVersion exchMergeTestWaitVer;
+
     /** Discovery listener. */
     private final DiscoveryEventListener discoLsnr = new DiscoveryEventListener() {
         @Override public void onEvent(DiscoveryEvent evt, DiscoCache cache) {
@@ -371,7 +374,10 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         }
     }
 
-    public void coordinatorInitialized() {
+    /**
+     *
+     */
+    public void onCoordinatorInitialized() {
         crdInitFut.onDone();
     }
 
@@ -1264,7 +1270,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     }
 
     /**
-     * @param topVer Topology version.
+     * @param topVer Exchange result topology version.
+     * @param initTopVer Exchange initial version.
      * @param err Error.
      */
     public void onExchangeDone(AffinityTopologyVersion topVer, AffinityTopologyVersion initTopVer, @Nullable Throwable err) {
@@ -1757,9 +1764,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             ((IgniteDiagnosticAware)fut).addDiagnosticRequest(ctx);
     }
 
-    /** */
-    private volatile AffinityTopologyVersion exchMergeTestWaitVer;
-
     /**
      * For testing only.
      *
@@ -1810,7 +1814,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     final GridDhtPartitionsSingleMessage pendingMsg = fut.mergeJoinExchangeOnDone(curFut);
 
                     if (pendingMsg != null)
-                        curFut.waitAndReplyToNode(evt.eventNode(), pendingMsg);
+                        curFut.waitAndReplyToNode(evt.eventNode().id(), pendingMsg);
                 }
 
                 exchWorker.futQ.remove(fut);
@@ -1903,7 +1907,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                         break;
                     }
-                    if (evt.type() == EVT_NODE_JOINED && cctx.cache().receivedCachesFromNodeJoin(node)) {
+                    if (evt.type() == EVT_NODE_JOINED && cctx.cache().hasCachesReceivedFromJoin(node)) {
                         log.info("Stop merge, received caches from node: " + node);
 
                         break;
@@ -2037,7 +2041,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
          */
         private void onExchangeDone(AffinityTopologyVersion resVer, GridDhtPartitionsExchangeFuture exchFut)
             throws IgniteInterruptedCheckedException {
-            if (resVer.compareTo(exchFut.exchangeId().topologyVersion()) != 0) {
+            if (resVer.compareTo(exchFut.initialVersion()) != 0) {
                 waitForExchangeFuture(resVer);
 
                 for (CachePartitionExchangeWorkerTask task : futQ) {

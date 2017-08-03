@@ -373,14 +373,6 @@ public class GridListSet<V> extends GridSerializableSet<V> implements Cloneable 
         return vals.iterator();
     }
 
-    /**
-     * @param idx Start index.
-     * @return List iterator.
-     */
-    public ListIterator<V> listIterator(int idx) {
-        return vals.listIterator(idx);
-    }
-
     /** {@inheritDoc} */
     @Override public int size() {
         return vals.size();

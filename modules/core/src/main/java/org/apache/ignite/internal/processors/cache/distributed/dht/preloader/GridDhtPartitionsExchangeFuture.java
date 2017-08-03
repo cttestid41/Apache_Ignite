@@ -266,7 +266,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @GridToStringExclude
     private GridDhtPartitionsExchangeFuture mergedWith;
 
-
     /**
      * @param cctx Cache context.
      * @param busyLock Busy lock.
@@ -296,7 +295,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         exchLog = cctx.logger(EXCHANGE_LOG);
 
         initFut = new GridFutureAdapter<Boolean>() {
-            @Nullable @Override public IgniteLogger logger() {
+            @Override public IgniteLogger logger() {
                 return log;
             }
         };
@@ -512,7 +511,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (fut != null)
                 fut.get();
 
-            cctx.exchange().coordinatorInitialized();
+            cctx.exchange().onCoordinatorInitialized();
         }
     }
 
@@ -1028,7 +1027,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         try {
             long start = U.currentTimeMillis();
 
-            IgniteInternalFuture fut = cctx.snapshot().tryStartLocalSnapshotOperation(events().lastEvent());
+            IgniteInternalFuture fut = cctx.snapshot().tryStartLocalSnapshotOperation(firstDiscoEvt);
 
             if (fut != null) {
                 fut.get();
@@ -1272,7 +1271,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * @param msg Message to send.
      * @param nodes Nodes.
+     * @param mergedJoinExchMsgs Messages received from merged 'join node' exchanges.
      * @param joinedNodeAff Affinity if was requested by some nodes.
      */
     private void sendAllPartitions(
@@ -1555,7 +1556,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         if (CU.clientNode(node)) {
             if (msg != null)
-                waitAndReplyToClient(nodeId, msg);
+                waitAndReplyToNode(nodeId, msg);
         }
         else {
             if (mergedJoinExchMsgs == null)
@@ -1640,7 +1641,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     private void processMergedMessage(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
         if (msg.client()) {
-            waitAndReplyToClient(node.id(), msg);
+            waitAndReplyToNode(node.id(), msg);
 
             return;
         }
@@ -1760,29 +1761,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         });
     }
 
-    public void waitAndReplyToNode(final ClusterNode node, final GridDhtPartitionsSingleMessage msg) {
-        listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
-            @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
-                FinishState finishState0;
-
-                synchronized (mux) {
-                    finishState0 = finishState;
-                }
-
-                assert finishState0 != null;
-
-                sendAllPartitionsToNode(finishState0, msg, node.id());
-            }
-        });
-    }
-
     /**
      * @param nodeId Node ID.
      * @param msg Client's message.
      */
-    private void waitAndReplyToClient(final UUID nodeId, final GridDhtPartitionsSingleMessage msg) {
-        assert msg.client();
-
+    public void waitAndReplyToNode(final UUID nodeId, final GridDhtPartitionsSingleMessage msg) {
         listen(new CI1<IgniteInternalFuture<AffinityTopologyVersion>>() {
             @Override public void apply(IgniteInternalFuture<AffinityTopologyVersion> fut) {
                 if (cctx.kernalContext().isStopping())
@@ -1814,9 +1797,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @param nodeId Sender node.
      * @param msg Partition single message.
      */
-    void processSingleMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
+    private void processSingleMessage(UUID nodeId, GridDhtPartitionsSingleMessage msg) {
         if (msg.client()) {
-            waitAndReplyToClient(nodeId, msg);
+            waitAndReplyToNode(nodeId, msg);
 
             return;
         }
@@ -3078,7 +3061,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private void onBecomeCoordinator(InitNewCoordinatorFuture newCrdFut) {
         boolean allRcvd = false;
 
-        cctx.exchange().coordinatorInitialized();
+        cctx.exchange().onCoordinatorInitialized();
 
         if (newCrdFut.restoreState()) {
             GridDhtPartitionsFullMessage fullMsg = newCrdFut.fullMessage();

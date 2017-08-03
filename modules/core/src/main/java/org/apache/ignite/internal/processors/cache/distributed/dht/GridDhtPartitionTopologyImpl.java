@@ -110,12 +110,6 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     private volatile AffinityTopologyVersion diffFromAffinityVer = AffinityTopologyVersion.NONE;
 
     /** */
-    //private AffinityTopologyVersion lastExchangeVer;
-
-    /** */
-    // private volatile AffinityTopologyVersion readyTopVer = AffinityTopologyVersion.NONE;
-
-    /** */
     private volatile AffinityTopologyVersion readyTopVer = AffinityTopologyVersion.NONE;
 
     /** */
@@ -401,6 +395,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     }
 
     /**
+     * @param affVer Affinity version.
      * @param aff Affinity assignments.
      * @param updateSeq Update sequence.
      */

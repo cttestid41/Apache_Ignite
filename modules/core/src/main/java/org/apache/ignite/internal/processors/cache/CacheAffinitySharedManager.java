@@ -1867,6 +1867,8 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
     }
 
     /**
+     * @param evts Discovery events processed during exchange.
+     * @param addedOnExchnage {@code True} if cache group was added during this exchange.
      * @param aff Affinity.
      * @param rebalanceInfo Rebalance information.
      * @param latePrimary If {@code true} delays primary assignment if it is not owner.

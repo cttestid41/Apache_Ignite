@@ -60,17 +60,16 @@ public class GridDhtPartitionsSingleRequest extends GridDhtPartitionsAbstractMes
 
         msg.restoreState(true);
 
-        msg.restoreExchangeId(restoreExchId);
+        msg.restoreExchId = restoreExchId;
 
         return msg;
     }
 
+    /**
+     * @return ID of current exchange on new coordinator.
+     */
     GridDhtPartitionExchangeId restoreExchangeId() {
         return restoreExchId;
-    }
-
-    void restoreExchangeId(GridDhtPartitionExchangeId restoreExchId) {
-        this.restoreExchId = restoreExchId;
     }
 
     /** {@inheritDoc} */

@@ -69,9 +69,7 @@ public interface GridDhtPartitionTopology {
     ) throws IgniteInterruptedCheckedException;
 
     /**
-     * Topology version.
-     *
-     * @return Topology version.
+     * @return Result topology version of last finished exchange.
      */
     public AffinityTopologyVersion readyTopologyVersion();
 
@@ -103,6 +101,7 @@ public interface GridDhtPartitionTopology {
      *
      * @param exchFut Exchange future.
      * @param affReady Affinity ready flag.
+     * @param updateMoving
      * @throws IgniteCheckedException If failed.
      */
     public void beforeExchange(GridDhtPartitionsExchangeFuture exchFut,
@@ -111,6 +110,7 @@ public interface GridDhtPartitionTopology {
         throws IgniteCheckedException;
 
     /**
+     * @param affVer Affinity version.
      * @param exchFut Exchange future.
      * @throws IgniteInterruptedCheckedException If interrupted.
      */
@@ -272,6 +272,7 @@ public interface GridDhtPartitionTopology {
     /**
      * @param exchId Exchange ID.
      * @param parts Partitions.
+     * @param force {@code True} to skip stale update check.
      * @return {@code True} if local state was changed.
      */
     public boolean update(@Nullable GridDhtPartitionExchangeId exchId,
@@ -297,6 +298,8 @@ public interface GridDhtPartitionTopology {
 
     /**
      * Resets the state of all LOST partitions to OWNING.
+     *
+     * @param resTopVer Exchange result version.
      */
     public void resetLostPartitions(AffinityTopologyVersion resTopVer);
 

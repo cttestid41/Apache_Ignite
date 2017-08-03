@@ -39,7 +39,7 @@ import org.apache.ignite.plugin.extensions.communication.MessageWriter;
 import org.jetbrains.annotations.Nullable;
 
 /**
- *
+ * Information about affinity assignment.
  */
 public class CacheGroupAffinityMessage implements Message {
     /** */
@@ -62,6 +62,7 @@ public class CacheGroupAffinityMessage implements Message {
 
     /**
      * @param assign0 Assignment.
+     * @param assignDiff0 Difference with ideal affinity assignment.
      */
     private CacheGroupAffinityMessage(List<List<ClusterNode>> assign0, Map<Integer, List<Long>> assignDiff0) {
         if (assign0 != null) {
@@ -95,7 +96,12 @@ public class CacheGroupAffinityMessage implements Message {
         }
     }
 
-    public static Map<Integer, CacheGroupAffinityMessage> createAffinityDiffMessages(Map<Integer, Map<Integer, List<Long>>> affDiff) {
+    /**
+     * @param affDiff
+     * @return
+     */
+    public static Map<Integer, CacheGroupAffinityMessage> createAffinityDiffMessages(
+        Map<Integer, Map<Integer, List<Long>>> affDiff) {
         if (F.isEmpty(affDiff))
             return null;
 
@@ -181,6 +187,9 @@ public class CacheGroupAffinityMessage implements Message {
         return assignments0;
     }
 
+    /**
+     * @return Difference with ideal affinity assignment.
+     */
     public Map<Integer, GridLongList> assignmentsDiff() {
         return assignsDiff;
     }

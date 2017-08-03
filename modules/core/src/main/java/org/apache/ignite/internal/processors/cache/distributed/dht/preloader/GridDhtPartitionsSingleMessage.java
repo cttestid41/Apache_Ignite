@@ -94,7 +94,10 @@ public class GridDhtPartitionsSingleMessage extends GridDhtPartitionsAbstractMes
     @GridDirectCollection(Integer.class)
     private Collection<Integer> grpsAffRequest;
 
-    /** */
+    /**
+     * Exchange finish message, sent to new coordinator when it tries to
+     * restore state after previous coordinator failed during exchange.
+     */
     private GridDhtPartitionsFullMessage finishMsg;
 
     /**

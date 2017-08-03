@@ -164,6 +164,17 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
     }
 
     /**
+     * @return Message copy.
+     */
+    GridDhtPartitionsFullMessage copy() {
+        GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
+
+        copyStateTo(cp);
+
+        return cp;
+    }
+
+    /**
      * @param resTopVer Result topology version.
      */
     public void resultTopologyVersion(AffinityTopologyVersion resTopVer) {
@@ -175,17 +186,6 @@ public class GridDhtPartitionsFullMessage extends GridDhtPartitionsAbstractMessa
      */
     public AffinityTopologyVersion resultTopologyVersion() {
         return resTopVer;
-    }
-
-    /**
-     * @return Message copy.
-     */
-    GridDhtPartitionsFullMessage copy() {
-        GridDhtPartitionsFullMessage cp = new GridDhtPartitionsFullMessage();
-
-        copyStateTo(cp);
-
-        return cp;
     }
 
     /**

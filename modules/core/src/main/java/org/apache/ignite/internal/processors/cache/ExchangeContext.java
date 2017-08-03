@@ -65,7 +65,7 @@ public class ExchangeContext {
         }
         else {
             boolean startCaches = fut.exchangeId().isJoined() &&
-                fut.sharedContext().cache().receivedCachesFromNodeJoin(fut.exchangeId().eventNode());
+                fut.sharedContext().cache().hasCachesReceivedFromJoin(fut.exchangeId().eventNode());
 
             fetchAffOnJoin = protocolVer == 1;
 
