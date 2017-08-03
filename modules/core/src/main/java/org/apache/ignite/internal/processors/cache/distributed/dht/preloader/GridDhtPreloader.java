@@ -611,8 +611,15 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
                             }
                         }
                         finally {
-                            if (!partsToEvict.isEmpty())
-                                locked = true;
+                            if (!partsToEvict.isEmpty()) {
+                                if (ctx.kernalContext().isStopping()) {
+                                    partsToEvict.clear();
+
+                                    locked = false;
+                                }
+                                else
+                                    locked = true;
+                            }
                             else {
                                 boolean res = partsEvictOwning.compareAndSet(1, 0);
 
