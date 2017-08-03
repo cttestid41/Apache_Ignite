@@ -1076,7 +1076,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             catch (IgniteFutureTimeoutCheckedException ignored) {
                 // Print pending transactions and locks that might have led to hang.
                 if (nextDumpTime <= U.currentTimeMillis()) {
-                    dumpPendingObjects();
+                    dumpPendingObjects(partReleaseFut);
 
                     nextDumpTime = U.currentTimeMillis() + nextDumpTimeout(dumpCnt++, futTimeout);
                 }
@@ -1150,12 +1150,17 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     *
+     * @param partReleaseFut Partition release future.
      */
-    private void dumpPendingObjects() {
+    private void dumpPendingObjects(IgniteInternalFuture<?> partReleaseFut) {
         U.warn(cctx.kernalContext().cluster().diagnosticLog(),
             "Failed to wait for partition release future [topVer=" + initialVersion() +
-            ", node=" + cctx.localNodeId() + "]. Dumping pending objects that might be the cause: ");
+            ", node=" + cctx.localNodeId() + "]");
+
+        U.warn(log, "Partition release future: " + partReleaseFut);
+
+        U.warn(cctx.kernalContext().cluster().diagnosticLog(),
+            "Dumping pending objects that might be the cause: ");
 
         try {
             cctx.exchange().dumpDebugInfo(this);
