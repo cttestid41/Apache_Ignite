@@ -1797,7 +1797,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 log.info("Merge exchange future on finish [curFut=" + curFut.initialVersion() +
                     ", mergedFut=" + fut.initialVersion() +
                     ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
-                    ", evtNode=" + fut.discoveryEvent().eventNode().id()+ ']');
+                    ", evtNode=" + fut.discoveryEvent().eventNode().id()+
+                    ", evtNodeClient=" + CU.clientNode(fut.discoveryEvent().eventNode())+ ']');
 
                 DiscoveryEvent evt = fut.discoveryEvent();
 
@@ -1911,7 +1912,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     log.info("Merge exchange future [curFut=" + curFut.initialVersion() +
                         ", mergedFut=" + fut.initialVersion() +
                         ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
-                        ", evtNode=" + fut.discoveryEvent().eventNode().id()+ ']');
+                        ", evtNode=" + fut.discoveryEvent().eventNode().id() +
+                        ", evtNodeClient=" + CU.clientNode(fut.discoveryEvent().eventNode())+ ']');
 
                     curFut.context().events().addEvent(fut.initialVersion(),
                         fut.discoveryEvent(),

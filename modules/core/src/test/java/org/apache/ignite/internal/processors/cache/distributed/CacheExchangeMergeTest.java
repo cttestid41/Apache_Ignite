@@ -686,6 +686,55 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    public void testMergeServersAndClientsFail1() throws Exception {
+        mergeServersAndClientsFail(false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeServersAndClientsFail2() throws Exception {
+        mergeServersAndClientsFail(true);
+    }
+
+
+    /**
+     * @param waitRebalance Wait for rebalance end before start tested topology change.
+     * @throws Exception If failed.
+     */
+    private void mergeServersAndClientsFail(boolean waitRebalance) throws Exception {
+        clientC = new IgniteClosure<String, Boolean>() {
+            @Override public Boolean apply(String nodeName) {
+                return nodeName.equals(getTestIgniteInstanceName(2)) || nodeName.equals(getTestIgniteInstanceName(3));
+            }
+        };
+
+        final Ignite srv0 = startGrids(6);
+
+        if (waitRebalance)
+            awaitPartitionMapExchange();
+
+        mergeExchangeWaitVersion(srv0, 10);
+
+        stopGrid(getTestIgniteInstanceName(1), true, false);
+        stopGrid(getTestIgniteInstanceName(2), true, false);
+        stopGrid(getTestIgniteInstanceName(3), true, false);
+        stopGrid(getTestIgniteInstanceName(4), true, false);
+
+        checkAffinity();
+
+        mergeExchangeWaitVersion(srv0, 12);
+
+        IgniteInternalFuture fut = startGrids(srv0, 6, 2);
+
+        fut.get();
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testJoinExchangeCoordinatorChange_NoMerge_1() throws Exception {
         for (CoordinatorChangeMode mode : CoordinatorChangeMode.values()) {
             exchangeCoordinatorChangeNoMerge(4, true, mode);
