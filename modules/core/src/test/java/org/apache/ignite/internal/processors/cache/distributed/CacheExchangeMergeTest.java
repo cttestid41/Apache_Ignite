@@ -656,6 +656,25 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    public void testMergeAndNewCoordinator() throws Exception {
+        final Ignite srv0 = startGrids(3);
+
+        mergeExchangeWaitVersion(srv0, 6);
+
+        IgniteInternalFuture fut = startGrids(srv0, 3, 3);
+
+        fut.get();
+
+        checkCaches();
+
+        stopGrid(0);
+
+        checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testMergeServersFail1_1() throws Exception {
         mergeServersFail1(false);
     }

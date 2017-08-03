@@ -175,8 +175,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     private AtomicReference<GridCacheVersion> lastVer = new AtomicReference<>();
 
     /**
-     * Message received from node joining cluster, needed if this join exchange
-     * is merged with previous one.
+     * Message received from node joining cluster (if this is 'node join' exchange),
+     * needed if this exchange is merged with another one.
      */
     @GridToStringExclude
     private GridDhtPartitionsSingleMessage pendingJoinMsg;
@@ -2877,6 +2877,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         initFut.onDone(true);
     }
 
+    /**
+     *
+     */
     private void onAllServersLeft() {
         assert cctx.kernalContext().clientNode() : cctx.localNode();
 
@@ -3235,20 +3238,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         return exchId.hashCode();
     }
 
-    /**
-     *
-     */
-    enum ExchangeType {
-        /** */
-        CLIENT,
-
-        /** */
-        ALL,
-
-        /** */
-        NONE
-    }
-
     /** {@inheritDoc} */
     @Override public void addDiagnosticRequest(IgniteDiagnosticPrepareContext diagCtx) {
         if (!isDone()) {
@@ -3376,18 +3365,39 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /**
      *
      */
-    private enum ExchangeLocalState {
-        /** */
-        CRD,
-        /** */
-        SRV,
+    enum ExchangeType {
         /** */
         CLIENT,
+
         /** */
+        ALL,
+
+        /** */
+        NONE
+    }
+    /**
+     *
+     */
+    private enum ExchangeLocalState {
+        /** Local node is coordinator. */
+        CRD,
+
+        /** Local node is non-coordinator server. */
+        SRV,
+
+        /** Local node is client node. */
+        CLIENT,
+
+        /**
+         * Previous coordinator failed before echange finished and
+         * local performs initialization to become new coordinator.
+         */
         BECOME_CRD,
-        /** */
+
+        /** Exchange finished. */
         DONE,
-        /** */
+
+        /** This exchange was merged with another one. */
         MERGED
     }
 }
