@@ -954,6 +954,9 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
      * @return Nodes responsible for given partition (primary is first).
      */
     @Nullable private List<ClusterNode> nodes0(int p, AffinityAssignment affAssignment, List<ClusterNode> affNodes) {
+        if (grp.isReplicated())
+            return affNodes;
+
         AffinityTopologyVersion topVer = affAssignment.topologyVersion();
 
         lock.readLock().lock();
@@ -1277,7 +1280,8 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             node2part = partMap;
 
-            if (exchangeVer == null && (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0)) {
+            if (exchangeVer == null && !grp.isReplicated() &&
+                    (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0)) {
                 AffinityAssignment affAssignment = grp.affinity().readyAffinity(readyTopVer);
 
                 for (Map.Entry<UUID, GridDhtPartitionMap> e : partMap.entrySet()) {
@@ -1538,7 +1542,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             node2part.put(parts.nodeId(), parts);
 
             // During exchange calculate diff after all messages are received and affinity initialized.
-            if (exchId == null) {
+            if (exchId == null && !grp.isReplicated()) {
                 if (readyTopVer.initialized() && readyTopVer.compareTo(diffFromAffinityVer) >= 0) {
                     AffinityAssignment affAssignment = grp.affinity().readyAffinity(readyTopVer);
 
@@ -1618,8 +1622,10 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             readyTopVer = lastTopChangeVer = assignment.topologyVersion();
 
-            if (assignment.topologyVersion().compareTo(diffFromAffinityVer) >= 0)
-                rebuildDiff(assignment);
+            if (!grp.isReplicated()) {
+                if (assignment.topologyVersion().compareTo(diffFromAffinityVer) >= 0)
+                    rebuildDiff(assignment);
+            }
 
             if (updateRebalanceVer)
                 updateRebalanceVersion(assignment.assignment());
@@ -2041,7 +2047,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             map.put(p, state);
 
-            if (state == MOVING || state == OWNING || state == RENTING) {
+            if (!grp.isReplicated() && (state == MOVING || state == OWNING || state == RENTING)) {
                 AffinityAssignment assignment = grp.affinity().cachedAffinity(diffFromAffinityVer);
 
                 if (!assignment.getIds(p).contains(ctx.localNodeId())) {
@@ -2082,12 +2088,14 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
             GridDhtPartitionMap parts = node2part.remove(nodeId);
 
-            if (parts != null) {
-                for (Integer p : parts.keySet()) {
-                    Set<UUID> diffIds = diffFromAffinity.get(p);
+            if (!grp.isReplicated()) {
+                if (parts != null) {
+                    for (Integer p : parts.keySet()) {
+                        Set<UUID> diffIds = diffFromAffinity.get(p);
 
-                    if (diffIds != null)
-                        diffIds.remove(nodeId);
+                        if (diffIds != null)
+                            diffIds.remove(nodeId);
+                    }
                 }
             }
 
@@ -2307,15 +2315,17 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                         owners.add(node);
                 }
 
-                Set<UUID> diff = diffFromAffinity.get(i);
+                if (!grp.isReplicated()) {
+                    Set<UUID> diff = diffFromAffinity.get(i);
 
-                if (diff != null) {
-                    for (UUID nodeId : diff) {
-                        if (hasState(i, nodeId, OWNING)) {
-                            ClusterNode node = ctx.discovery().node(nodeId);
+                    if (diff != null) {
+                        for (UUID nodeId : diff) {
+                            if (hasState(i, nodeId, OWNING)) {
+                                ClusterNode node = ctx.discovery().node(nodeId);
 
-                            if (node != null)
-                                owners.add(node);
+                                if (node != null)
+                                    owners.add(node);
+                            }
                         }
                     }
                 }
