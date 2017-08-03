@@ -518,7 +518,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
 
                     if (grp.affinityNode()) {
                         if (grpStarted ||
-                            exchFut.discoveryEvent().type() == EVT_DISCOVERY_CUSTOM_EVT ||
+                            exchFut.firstEvent().type() == EVT_DISCOVERY_CUSTOM_EVT ||
                             exchFut.serverNodeDiscoveryEvent()) {
                             if (affReady) {
                                 assert grp.affinity().lastVersion().equals(evts.topologyVersion());
@@ -626,7 +626,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
                                 changed = true;
 
                                 if (grp.eventRecordable(EVT_CACHE_REBALANCE_PART_DATA_LOST)) {
-                                    DiscoveryEvent discoEvt = exchFut.discoveryEvent();
+                                    DiscoveryEvent discoEvt = exchFut.events().lastEvent();
 
                                     grp.addRebalanceEvent(p,
                                         EVT_CACHE_REBALANCE_PART_DATA_LOST,

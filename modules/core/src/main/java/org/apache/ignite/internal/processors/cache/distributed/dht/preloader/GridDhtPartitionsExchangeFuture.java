@@ -125,10 +125,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** */
     @GridToStringExclude
-    private volatile DiscoCache discoCache;
+    private volatile DiscoCache firstEvtDiscoCache;
 
-    /** Discovery event. */
-    private volatile DiscoveryEvent discoEvt;
+    /** Discovery event triggered this exchange. */
+    private volatile DiscoveryEvent firstDiscoEvt;
 
     /** */
     @GridToStringExclude
@@ -174,7 +174,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** Last committed cache version before next topology version use. */
     private AtomicReference<GridCacheVersion> lastVer = new AtomicReference<>();
 
-    /** */
+    /**
+     * Message received from node joining cluster, needed if this join exchange
+     * is merged with previous one.
+     */
     @GridToStringExclude
     private GridDhtPartitionsSingleMessage pendingJoinMsg;
 
@@ -222,11 +225,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     /** */
     private ConcurrentMap<UUID, GridDhtPartitionsSingleMessage> msgs = new ConcurrentHashMap8<>();
 
-    /** */
+    /** Single messages from merged 'node join' exchanges. */
     @GridToStringExclude
     private Map<UUID, GridDhtPartitionsSingleMessage> mergedJoinExchMsgs;
 
-    /** */
+    /** Number of awaited messages for merged 'node join' exchanges. */
     @GridToStringExclude
     private int awaitMergedMsgs;
 
@@ -255,7 +258,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     @GridToStringExclude
     private FinishState finishState;
 
-    /** */
+    /** Initialized when node becomes new coordinator. */
     @GridToStringExclude
     private InitNewCoordinatorFuture newCrdFut;
 
@@ -371,15 +374,6 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     * @return Discovery cache.
-     *
-     * TODO 5578 review usages, rename initialDiscoveryEvent
-     */
-    public DiscoCache discoCache() {
-        return discoCache;
-    }
-
-    /**
      * @param cacheId Cache ID.
      * @param rcvdFrom Node ID cache was received from.
      * @return {@code True} if cache was added during this exchange.
@@ -431,8 +425,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         assert exchId.equals(this.exchId);
 
         this.exchId.discoveryEvent(discoEvt);
-        this.discoEvt = discoEvt;
-        this.discoCache = discoCache;
+        this.firstDiscoEvt= discoEvt;
+        this.firstEvtDiscoCache = discoCache;
 
         evtLatch.countDown();
     }
@@ -459,12 +453,25 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     * @return Discovery event.
+     * @return First event discovery event.
      *
-     * TODO 5578 review usages, rename initialDiscoveryEvent
      */
-    public DiscoveryEvent discoveryEvent() {
-        return discoEvt;
+    public DiscoveryEvent firstEvent() {
+        return firstDiscoEvt;
+    }
+
+    /**
+     * @return Discovery cache for first event.
+     */
+    public DiscoCache firstEventCache() {
+        return firstEvtDiscoCache;
+    }
+
+    /**
+     * @return Events processed in this exchange.
+     */
+    public ExchangeDiscoveryEvents events() {
+        return exchCtx.events();
     }
 
     /**
@@ -525,13 +532,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         U.await(evtLatch);
 
-        assert discoEvt != null : this;
-        assert exchId.nodeId().equals(discoEvt.eventNode().id()) : this;
+        assert firstDiscoEvt != null : this;
+        assert exchId.nodeId().equals(firstDiscoEvt.eventNode().id()) : this;
 
         try {
             AffinityTopologyVersion topVer = initialVersion();
 
-            srvNodes = new ArrayList<>(discoCache.serverNodes());
+            srvNodes = new ArrayList<>(firstEvtDiscoCache.serverNodes());
 
             remaining.addAll(F.nodeIds(F.view(srvNodes, F.remoteNodes(cctx.localNodeId()))));
 
@@ -551,18 +558,18 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             if (exchLog.isInfoEnabled()) {
                 exchLog.info("Started exchange init [topVer=" + topVer +
                     ", crd=" + crdNode +
-                    ", evt=" + IgniteUtils.gridEventName(discoEvt.type()) +
-                    ", evtNode=" + discoEvt.eventNode().id() +
-                    ", customEvt=" + (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT ? ((DiscoveryCustomEvent) discoEvt).customMessage() : null) +
+                    ", evt=" + IgniteUtils.gridEventName(firstDiscoEvt.type()) +
+                    ", evtNode=" + firstDiscoEvt.eventNode().id() +
+                    ", customEvt=" + (firstDiscoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT ? ((DiscoveryCustomEvent)firstDiscoEvt).customMessage() : null) +
                     ", allowMerge=" + exchCtx.mergeExchanges() + ']');
             }
 
             ExchangeType exchange;
 
-            if (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
+            if (firstDiscoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
                 assert !exchCtx.mergeExchanges();
 
-                DiscoveryCustomMessage msg = ((DiscoveryCustomEvent)discoEvt).customMessage();
+                DiscoveryCustomMessage msg = ((DiscoveryCustomEvent)firstDiscoEvt).customMessage();
 
                 if (msg instanceof ChangeGlobalStateMessage) {
                     assert exchActions != null && !exchActions.empty();
@@ -575,7 +582,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                     exchange = onCacheChangeRequest(crdNode);
                 }
                 else if (msg instanceof SnapshotDiscoveryMessage) {
-                    exchange = CU.clientNode(discoEvt.eventNode()) ?
+                    exchange = CU.clientNode(firstDiscoEvt.eventNode()) ?
                         onClientNodeEvent(crdNode) :
                         onServerNodeEvent(crdNode);
                 }
@@ -588,10 +595,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 initCoordinatorCaches(newCrd);
             }
             else {
-                if (discoEvt.type() == EVT_NODE_JOINED) {
-                    if (!discoEvt.eventNode().isLocal()) {
+                if (firstDiscoEvt.type() == EVT_NODE_JOINED) {
+                    if (!firstDiscoEvt.eventNode().isLocal()) {
                         Collection<DynamicCacheDescriptor> receivedCaches = cctx.cache().startReceivedCaches(
-                            discoEvt.eventNode().id(),
+                            firstDiscoEvt.eventNode().id(),
                             topVer);
 
                         cctx.affinity().initStartedCaches(crdNode, this, receivedCaches);
@@ -616,7 +623,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         }
                     }
                     else {
-                        if (CU.clientNode(discoEvt.eventNode()))
+                        if (CU.clientNode(firstDiscoEvt.eventNode()))
                             exchange = onClientNodeEvent(crdNode);
                         else
                             exchange = cctx.kernalContext().clientNode() ? ExchangeType.CLIENT : ExchangeType.ALL;
@@ -626,7 +633,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                         onLeft();
                 }
                 else {
-                    exchange = CU.clientNode(discoEvt.eventNode()) ? onClientNodeEvent(crdNode) :
+                    exchange = CU.clientNode(firstDiscoEvt.eventNode()) ? onClientNodeEvent(crdNode) :
                         onServerNodeEvent(crdNode);
                 }
             }
@@ -761,13 +768,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             top.updateTopologyVersion(
                 this,
-                discoCache(),
+                events().discoveryCache(),
                 updSeq,
                 cacheGroupStopping(grp.groupId()));
         }
 
         for (GridClientPartitionTopology top : cctx.exchange().clientTopologies())
-            top.updateTopologyVersion(this, discoCache(), -1, cacheGroupStopping(top.groupId()));
+            top.updateTopologyVersion(this, events().discoveryCache(), -1, cacheGroupStopping(top.groupId()));
     }
 
     /**
@@ -892,19 +899,19 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return Exchange type.
      */
     private ExchangeType onClientNodeEvent(boolean crd) throws IgniteCheckedException {
-        assert CU.clientNode(discoEvt.eventNode()) : this;
+        assert CU.clientNode(firstDiscoEvt.eventNode()) : this;
 
-        if (discoEvt.type() == EVT_NODE_LEFT || discoEvt.type() == EVT_NODE_FAILED) {
+        if (firstDiscoEvt.type() == EVT_NODE_LEFT || firstDiscoEvt.type() == EVT_NODE_FAILED) {
             onLeft();
 
-            assert !discoEvt.eventNode().isLocal() : discoEvt;
+            assert !firstDiscoEvt.eventNode().isLocal() : firstDiscoEvt;
         }
         else
-            assert discoEvt.type() == EVT_NODE_JOINED || discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT : discoEvt;
+            assert firstDiscoEvt.type() == EVT_NODE_JOINED || firstDiscoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT : firstDiscoEvt;
 
         cctx.affinity().onClientEvent(this, crd);
 
-        return discoEvt.eventNode().isLocal() ? ExchangeType.CLIENT : ExchangeType.NONE;
+        return firstDiscoEvt.eventNode().isLocal() ? ExchangeType.CLIENT : ExchangeType.NONE;
     }
 
     /**
@@ -913,9 +920,9 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return Exchange type.
      */
     private ExchangeType onServerNodeEvent(boolean crd) throws IgniteCheckedException {
-        assert !CU.clientNode(discoEvt.eventNode()) : this;
+        assert !CU.clientNode(firstDiscoEvt.eventNode()) : this;
 
-        if (discoEvt.type() == EVT_NODE_LEFT || discoEvt.type() == EVT_NODE_FAILED) {
+        if (firstDiscoEvt.type() == EVT_NODE_LEFT || firstDiscoEvt.type() == EVT_NODE_FAILED) {
             onLeft();
 
             exchCtx.events().warnNoAffinityNodes(cctx);
@@ -979,7 +986,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
         waitPartitionRelease();
 
-        boolean topChanged = discoEvt.type() != EVT_DISCOVERY_CUSTOM_EVT || affChangeMsg != null;
+        boolean topChanged = firstDiscoEvt.type() != EVT_DISCOVERY_CUSTOM_EVT || affChangeMsg != null;
 
         for (GridCacheContext cacheCtx : cctx.cacheContexts()) {
             if (cacheCtx.isLocal() || cacheStopping(cacheCtx.cacheId()))
@@ -1021,7 +1028,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         try {
             long start = U.currentTimeMillis();
 
-            IgniteInternalFuture fut = cctx.snapshot().tryStartLocalSnapshotOperation(discoEvt);
+            IgniteInternalFuture fut = cctx.snapshot().tryStartLocalSnapshotOperation(events().lastEvent());
 
             if (fut != null) {
                 fut.get();
@@ -1190,7 +1197,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      * @return {@code True} if exchange for local node join.
      */
     public boolean localJoinExchange() {
-        return discoEvt.type() == EVT_NODE_JOINED && discoEvt.eventNode().isLocal();
+        return firstDiscoEvt.type() == EVT_NODE_JOINED && firstDiscoEvt.eventNode().isLocal();
     }
 
     /**
@@ -1423,7 +1430,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
             Map<Integer, CacheValidation> m = U.newHashMap(cctx.cache().cacheGroups().size());
 
             for (CacheGroupContext grp : cctx.cache().cacheGroups())
-                m.put(grp.groupId(), validateCacheGroup(grp, discoEvt.topologyNodes()));
+                m.put(grp.groupId(), validateCacheGroup(grp, events().lastEvent().topologyNodes()));
 
             grpValidRes = m;
         }
@@ -1483,8 +1490,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             exchActions = null;
 
-            if (discoEvt instanceof DiscoveryCustomEvent)
-                ((DiscoveryCustomEvent)discoEvt).customMessage(null);
+            if (firstDiscoEvt instanceof DiscoveryCustomEvent)
+                ((DiscoveryCustomEvent)firstDiscoEvt).customMessage(null);
 
             if (err == null)
                 cctx.exchange().lastFinishedFuture(this);
@@ -1528,9 +1535,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * Records that this exchange if merged with another 'node join' exchange.
+     *
      * @param node Joined node.
      * @param msg Joined node message if already received.
-     * @return {@code True} if need wait for message from joined server node.
+     * @return {@code True} if need to wait for message from joined server node.
      */
     private boolean addMergedJoinExchange(ClusterNode node, @Nullable GridDhtPartitionsSingleMessage msg) {
         assert Thread.holdsLock(mux);
@@ -1582,6 +1591,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
+     * Merges this exchange with given one.
+     *
      * @param fut Current exchange to merge with.
      * @return {@code True} if need wait for message from joined server node.
      */
@@ -1596,7 +1607,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             mergedWith = fut;
 
-            ClusterNode joinedNode = discoEvt.eventNode();
+            ClusterNode joinedNode = firstDiscoEvt.eventNode();
 
             wait = fut.addMergedJoinExchange(joinedNode, pendingJoinMsg);
         }
@@ -1784,7 +1795,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
 
                 if (finishState0 == null) {
-                    assert discoEvt.type() == EVT_NODE_JOINED && CU.clientNode(discoEvt.eventNode()) : this;
+                    assert firstDiscoEvt.type() == EVT_NODE_JOINED && CU.clientNode(firstDiscoEvt.eventNode()) : this;
 
                     finishState0 = new FinishState(cctx.localNodeId(),
                         initialVersion(),
@@ -2093,7 +2104,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                 if (!grp.isLocal()) {
-                    boolean detectedOnGrp = grp.topology().detectLostPartitions(resTopVer, discoEvt);
+                    boolean detectedOnGrp = grp.topology().detectLostPartitions(resTopVer, events().lastEvent());
 
                     detected |= detectedOnGrp;
                 }
@@ -2130,7 +2141,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     *
+     * @param sndResNodes Additional nodes to send finish message to.
      */
     private void onAllReceived(@Nullable Collection<ClusterNode> sndResNodes) {
         try {
@@ -2138,7 +2149,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
             assert partHistSuppliers.isEmpty() : partHistSuppliers;
 
-            if (!crd.equals(discoCache.serverNodes().get(0)) && !exchCtx.mergeExchanges()) {
+            if (!exchCtx.mergeExchanges() && !crd.equals(events().discoveryCache().serverNodes().get(0))) {
                 for (CacheGroupContext grp : cctx.cache().cacheGroups()) {
                     if (!grp.isLocal())
                         grp.topology().beforeExchange(this, !centralizedAff, false);
@@ -2165,7 +2176,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
     }
 
     /**
-     *
+     * @param sndResNodes Additional nodes to send finish message to.
      */
     private void finishExchangeOnCoordinator(@Nullable Collection<ClusterNode> sndResNodes) {
         try {
@@ -2239,13 +2250,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
                 }
             }
 
-            if (discoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
-                assert discoEvt instanceof DiscoveryCustomEvent;
+            if (firstDiscoEvt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
+                assert firstDiscoEvt instanceof DiscoveryCustomEvent;
 
                 if (activateCluster())
                     assignPartitionsStates();
 
-                if (((DiscoveryCustomEvent)discoEvt).customMessage() instanceof DynamicCacheChangeBatch) {
+                if (((DiscoveryCustomEvent)firstDiscoEvt).customMessage() instanceof DynamicCacheChangeBatch) {
                     if (exchActions != null) {
                         Set<String> caches = exchActions.cachesToResetLostPartitions();
 
@@ -2906,7 +2917,7 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                         ClusterNode crd0;
 
-                        discoCache.updateAlives(node);
+                        events().discoveryCache().updateAlives(node);
 
                         InitNewCoordinatorFuture newCrdFut0;
 
@@ -3269,8 +3280,8 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
      */
     public String shortInfo() {
         return "GridDhtPartitionsExchangeFuture [topVer=" + initialVersion() +
-            ", evt=" + (discoEvt != null ? IgniteUtils.gridEventName(discoEvt.type()) : -1) +
-            ", evtNode=" + (discoEvt != null ? discoEvt.eventNode() : null) +
+            ", evt=" + (firstDiscoEvt != null ? IgniteUtils.gridEventName(firstDiscoEvt.type()) : -1) +
+            ", evtNode=" + (firstDiscoEvt != null ? firstDiscoEvt.eventNode() : null) +
             ", done=" + isDone() + ']';
     }
 

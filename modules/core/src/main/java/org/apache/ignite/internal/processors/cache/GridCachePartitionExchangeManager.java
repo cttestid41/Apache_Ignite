@@ -1796,15 +1796,15 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                 log.info("Merge exchange future on finish [curFut=" + curFut.initialVersion() +
                     ", mergedFut=" + fut.initialVersion() +
-                    ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
-                    ", evtNode=" + fut.discoveryEvent().eventNode().id()+
-                    ", evtNodeClient=" + CU.clientNode(fut.discoveryEvent().eventNode())+ ']');
+                    ", evt=" + IgniteUtils.gridEventName(fut.firstEvent().type()) +
+                    ", evtNode=" + fut.firstEvent().eventNode().id()+
+                    ", evtNodeClient=" + CU.clientNode(fut.firstEvent().eventNode())+ ']');
 
-                DiscoveryEvent evt = fut.discoveryEvent();
+                DiscoveryEvent evt = fut.firstEvent();
 
                 curFut.context().events().addEvent(fut.initialVersion(),
-                    fut.discoveryEvent(),
-                    fut.discoCache());
+                    fut.firstEvent(),
+                    fut.firstEventCache());
 
                 if (evt.type() == EVT_NODE_JOINED) {
                     final GridDhtPartitionsSingleMessage pendingMsg = fut.mergeJoinExchangeOnDone(curFut);
@@ -1888,7 +1888,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                 if (task instanceof GridDhtPartitionsExchangeFuture) {
                     GridDhtPartitionsExchangeFuture fut = (GridDhtPartitionsExchangeFuture)task;
 
-                    DiscoveryEvent evt = fut.discoveryEvent();
+                    DiscoveryEvent evt = fut.firstEvent();
 
                     if (evt.type() == EVT_DISCOVERY_CUSTOM_EVT) {
                         log.info("Stop merge, custom event found: " + evt);
@@ -1911,13 +1911,13 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                     log.info("Merge exchange future [curFut=" + curFut.initialVersion() +
                         ", mergedFut=" + fut.initialVersion() +
-                        ", evt=" + IgniteUtils.gridEventName(fut.discoveryEvent().type()) +
-                        ", evtNode=" + fut.discoveryEvent().eventNode().id() +
-                        ", evtNodeClient=" + CU.clientNode(fut.discoveryEvent().eventNode())+ ']');
+                        ", evt=" + IgniteUtils.gridEventName(fut.firstEvent().type()) +
+                        ", evtNode=" + fut.firstEvent().eventNode().id() +
+                        ", evtNodeClient=" + CU.clientNode(fut.firstEvent().eventNode())+ ']');
 
                     curFut.context().events().addEvent(fut.initialVersion(),
-                        fut.discoveryEvent(),
-                        fut.discoCache());
+                        fut.firstEvent(),
+                        fut.firstEventCache());
 
                     if (evt.type() == EVT_NODE_JOINED) {
                         if (fut.mergeJoinExchange(curFut))
@@ -2214,7 +2214,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             boolean newCrd = false;
 
                             if (!crd) {
-                                List<ClusterNode> srvNodes = exchFut.discoCache().serverNodes();
+                                List<ClusterNode> srvNodes = exchFut.firstEventCache().serverNodes();
 
                                 crd = newCrd = !srvNodes.isEmpty() && srvNodes.get(0).isLocal();
                             }

@@ -71,7 +71,7 @@ public class ExchangeDiscoveryEvents {
      * @param fut Current exchange future.
      */
     ExchangeDiscoveryEvents(GridDhtPartitionsExchangeFuture fut) {
-        addEvent(fut.initialVersion(), fut.discoveryEvent(), fut.discoCache());
+        addEvent(fut.initialVersion(), fut.firstEvent(), fut.firstEventCache());
     }
 
     /**
@@ -106,7 +106,7 @@ public class ExchangeDiscoveryEvents {
      * @return Last server join/fail event version.
      */
     AffinityTopologyVersion lastServerEventVersion() {
-        assert srvEvtTopVer != null;
+        assert srvEvtTopVer != null : this;
 
         return srvEvtTopVer;
     }
@@ -169,7 +169,7 @@ public class ExchangeDiscoveryEvents {
     /**
      * @return Last event.
      */
-    DiscoveryEvent lastEvent() {
+    public DiscoveryEvent lastEvent() {
         return lastSrvEvt != null ? lastSrvEvt : lastEvt;
     }
 

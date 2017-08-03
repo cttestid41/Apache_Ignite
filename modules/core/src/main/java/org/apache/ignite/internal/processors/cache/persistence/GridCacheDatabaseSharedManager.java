@@ -721,7 +721,7 @@ public class GridCacheDatabaseSharedManager extends IgniteCacheDatabaseSharedMan
 
     /** {@inheritDoc} */
     @Override public void beforeExchange(GridDhtPartitionsExchangeFuture fut) throws IgniteCheckedException {
-        DiscoveryEvent discoEvt = fut.discoveryEvent();
+        DiscoveryEvent discoEvt = fut.firstEvent();
 
         boolean joinEvt = discoEvt.type() == EventType.EVT_NODE_JOINED;
 

@@ -56,7 +56,7 @@ public class ExchangeContext {
      * @param fut Exchange future.
      */
     public ExchangeContext(boolean crd, GridDhtPartitionsExchangeFuture fut) {
-        int protocolVer = exchangeProtocolVersion(fut.discoCache().minimumNodeVersion());
+        int protocolVer = exchangeProtocolVersion(fut.firstEventCache().minimumNodeVersion());
 
         if (compatibilityNode || (crd && fut.localJoinExchange())) {
             fetchAffOnJoin = true;
@@ -71,7 +71,7 @@ public class ExchangeContext {
 
             merge = !startCaches &&
                 protocolVer > 1 &&
-                fut.discoveryEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
+                fut.firstEvent().type() != EVT_DISCOVERY_CUSTOM_EVT;
         }
 
         evts = new ExchangeDiscoveryEvents(fut);

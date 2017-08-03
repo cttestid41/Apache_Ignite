@@ -2809,7 +2809,7 @@ public class CacheLateAffinityAssignmentTest extends GridCommonAbstractTest {
                 GridDhtPartitionsExchangeFuture fut = futs.get(i);
 
                 if (fut.initialVersion().equals(topVer0)) {
-                    evt = fut.discoveryEvent();
+                    evt = fut.firstEvent();
 
                     break;
                 }

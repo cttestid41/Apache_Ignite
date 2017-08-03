@@ -102,7 +102,7 @@ public class InitNewCoordinatorFuture extends GridCompoundFuture {
         if (restoreState) {
             DiscoCache curDiscoCache = cctx.discovery().discoCache();
 
-            DiscoCache discoCache = exchFut.discoCache();
+            DiscoCache discoCache = exchFut.events().discoveryCache();
 
             List<ClusterNode> nodes = new ArrayList<>();
 
