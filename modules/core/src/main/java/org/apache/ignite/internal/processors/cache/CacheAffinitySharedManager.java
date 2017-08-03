@@ -2093,6 +2093,11 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     List<ClusterNode> newNodes = newAssignment.get(p);
                     List<ClusterNode> curNodes = curAssignment.get(p);
 
+                    assert aliveNodes.containsAll(newNodes) : "Invalid new assignment [grp=" + grpHolder.aff.cacheOrGroupName() +
+                        ", nodes=" + newNodes +
+                        ", topVer=" + fut.context().events().discoveryCache().version() +
+                        ", evts=" + fut.context().events().events() + "]";
+
                     ClusterNode curPrimary = curNodes.size() > 0 ? curNodes.get(0) : null;
                     ClusterNode newPrimary = newNodes.size() > 0 ? newNodes.get(0) : null;
 
@@ -2154,6 +2159,11 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     }
 
                     if (newNodes0 != null) {
+                        assert aliveNodes.containsAll(newNodes0) : "Invalid late assignment [grp=" + grpHolder.aff.cacheOrGroupName() +
+                            ", nodes=" + newNodes +
+                            ", topVer=" + fut.context().events().discoveryCache().version() +
+                            ", evts=" + fut.context().events().events() + "]";
+
                         if (newAssignment0 != null)
                             newAssignment0.set(p, newNodes0);
 

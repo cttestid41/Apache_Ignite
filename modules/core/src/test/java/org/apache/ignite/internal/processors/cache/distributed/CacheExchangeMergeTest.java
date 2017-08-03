@@ -332,6 +332,8 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
      */
     public void testMergeStartStopRandomClientsServers() throws Exception {
         for (int iter = 0; iter < 3; iter++) {
+            log.info("Iteration: " + iter);
+
             final int srvs = 5;
             final int clients = 5;
 
