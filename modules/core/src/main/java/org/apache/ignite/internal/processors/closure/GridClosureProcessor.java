@@ -862,8 +862,8 @@ public class GridClosureProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * Executes closure on system pool. Companion to {@link #runLocal(Runnable, boolean)} but
-     * in case of rejected execution re-runs the closure in the current thread (blocking).
+     * Executes closure on system pool. In case of rejected execution re-runs the closure in the current
+     * thread (blocking).
      *
      * @param c Closure to execute.
      * @return Future.
@@ -873,8 +873,7 @@ public class GridClosureProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * Companion to {@link #runLocal(Runnable, boolean)} but in case of rejected execution re-runs
-     * the closure in the current thread (blocking).
+     * In case of rejected execution re-runs the closure in the current thread (blocking).
      *
      * @param c Closure to execute.
      * @param sys If {@code true}, then system pool will be used, otherwise public pool will be used.
@@ -885,8 +884,7 @@ public class GridClosureProcessor extends GridProcessorAdapter {
     }
 
     /**
-     * Companion to {@link #runLocal(Runnable, boolean)} but in case of rejected execution re-runs
-     * the closure in the current thread (blocking).
+     * In case of rejected execution re-runs the closure in the current thread (blocking).
      *
      * @param c Closure to execute.
      * @param plc Policy to choose executor pool.
