@@ -1309,7 +1309,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                         Map<Object, Object> res = cache.getAll(map.keySet());
 
                         for (Map.Entry<Integer, Integer> e : map.entrySet())
-                            assertEquals(e.getValue(), res.get(e.getKey()));
+                            assertEquals(err, e.getValue(), res.get(e.getKey()));
                     }
 
                     if (cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL) {
