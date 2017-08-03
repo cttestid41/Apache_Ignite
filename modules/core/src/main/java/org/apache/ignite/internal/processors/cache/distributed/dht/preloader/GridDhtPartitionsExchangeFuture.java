@@ -1373,6 +1373,13 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         return done.get();
     }
 
+    /**
+     * Finish merged future to allow GridCachePartitionExchangeManager.ExchangeFutureSet cleanup.
+     */
+    public void finishMerged() {
+        super.onDone(null, null);
+    }
+
     /** {@inheritDoc} */
     @Override public boolean onDone(@Nullable AffinityTopologyVersion res, @Nullable Throwable err) {
         if (!done.compareAndSet(false, true))
@@ -1515,6 +1522,10 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
         partReleaseFut = null;
         changeGlobalStateE = null;
         exchActions = null;
+        mergedJoinExchMsgs = null;
+        pendingJoinMsg = null;
+        exchCtx = null;
+        newCrdFut = null;
     }
 
     /**

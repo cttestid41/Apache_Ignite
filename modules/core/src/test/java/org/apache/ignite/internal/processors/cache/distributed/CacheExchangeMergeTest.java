@@ -53,6 +53,7 @@ import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsAbstractMessage;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsExchangeFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsFullMessage;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsSingleRequest;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
@@ -73,6 +74,7 @@ import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 
+import static org.apache.ignite.IgniteSystemProperties.IGNITE_EXCHANGE_HISTORY_SIZE;
 import static org.apache.ignite.cache.CacheAtomicityMode.ATOMIC;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
@@ -534,6 +536,70 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         fut.get();
 
         checkCaches();
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testMergeAndHistoryCleanup() throws Exception {
+        final int histSize = 5;
+
+        String oldHistVal = System.getProperty(IGNITE_EXCHANGE_HISTORY_SIZE);
+
+        System.setProperty(IGNITE_EXCHANGE_HISTORY_SIZE, String.valueOf(histSize));
+
+        try {
+            final Ignite srv0 = startGrid(0);
+
+            int topVer = 1;
+
+            for (int i = 0; i < 3; i++) {
+                mergeExchangeWaitVersion(srv0, topVer + 3);
+
+                startGrids(srv0, topVer, 3).get();
+
+                topVer += 3;
+            }
+
+            checkHistorySize(histSize);
+
+            awaitPartitionMapExchange();
+
+            checkHistorySize(histSize);
+
+            mergeExchangeWaitVersion(srv0, topVer + 2);
+
+            stopGrid(1);
+            stopGrid(2);
+
+            checkHistorySize(histSize);
+
+            awaitPartitionMapExchange();
+
+            checkHistorySize(histSize);
+        }
+        finally {
+            if (oldHistVal != null)
+                System.setProperty(IGNITE_EXCHANGE_HISTORY_SIZE, oldHistVal);
+            else
+                System.clearProperty(IGNITE_EXCHANGE_HISTORY_SIZE);
+        }
+    }
+
+    /**
+     * @param histSize History size.
+     */
+    private void checkHistorySize(int histSize) {
+        List<Ignite> nodes = G.allGrids();
+
+        assertTrue(nodes.size() > 0);
+
+        for (Ignite node : nodes) {
+            List<GridDhtPartitionsExchangeFuture> exchFuts =
+                    ((IgniteEx)node).context().cache().context().exchange().exchangeFutures();
+
+            assertTrue("Unexpected size: " + exchFuts.size(), exchFuts.size() > 0 && exchFuts.size() <= histSize);
+        }
     }
 
     /**

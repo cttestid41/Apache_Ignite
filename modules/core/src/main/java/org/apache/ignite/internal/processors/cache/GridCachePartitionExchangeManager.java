@@ -128,7 +128,7 @@ import static org.apache.ignite.internal.processors.cache.distributed.dht.preloa
  */
 public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedManagerAdapter<K, V> {
     /** Exchange history size. */
-    private static final int EXCHANGE_HISTORY_SIZE =
+    private final int EXCHANGE_HISTORY_SIZE =
         IgniteSystemProperties.getInteger(IgniteSystemProperties.IGNITE_EXCHANGE_HISTORY_SIZE, 1_000);
 
     /** */
@@ -185,7 +185,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
      * discovery event. In case if remote node will retry partition exchange, completed future will indicate
      * that full partition map should be sent to requesting node right away.
      */
-    private ExchangeFutureSet exchFuts = new ExchangeFutureSet();
+    private ExchangeFutureSet exchFuts = new ExchangeFutureSet(EXCHANGE_HISTORY_SIZE);
 
     /** */
     private volatile IgniteCheckedException stopErr;
@@ -1816,8 +1816,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     if (pendingMsg != null)
                         curFut.waitAndReplyToNode(evt.eventNode().id(), pendingMsg);
                 }
-
-                exchWorker.futQ.remove(fut);
             }
         }
 
@@ -1927,8 +1925,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                         if (fut.mergeJoinExchange(curFut))
                             awaited++;
                     }
-
-                    exchWorker.futQ.remove(fut);
                 }
                 else {
                     if (!task.skipForExchangeMerge()) {
@@ -2039,7 +2035,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
          * @param exchFut Exchange future.
          * @throws IgniteInterruptedCheckedException If interrupted.
          */
-        private void onExchangeDone(AffinityTopologyVersion resVer, GridDhtPartitionsExchangeFuture exchFut)
+        private void removeMergedFutures(AffinityTopologyVersion resVer, GridDhtPartitionsExchangeFuture exchFut)
             throws IgniteInterruptedCheckedException {
             if (resVer.compareTo(exchFut.initialVersion()) != 0) {
                 waitForExchangeFuture(resVer);
@@ -2048,8 +2044,11 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     if (task instanceof GridDhtPartitionsExchangeFuture) {
                         GridDhtPartitionsExchangeFuture fut0 = (GridDhtPartitionsExchangeFuture)task;
 
-                        if (resVer.compareTo(fut0.initialVersion()) >= 0)
+                        if (resVer.compareTo(fut0.initialVersion()) >= 0) {
+                            fut0.finishMerged();
+
                             futQ.remove(fut0);
+                        }
                         else
                             break;
                     }
@@ -2262,7 +2261,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                 }
                             }
 
-                            onExchangeDone(resVer, exchFut);
+                            removeMergedFutures(resVer, exchFut);
 
                             if (log.isDebugEnabled())
                                 log.debug("After waiting for exchange future [exchFut=" + exchFut + ", worker=" +
@@ -2478,10 +2477,15 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
         /** */
         private static final long serialVersionUID = 0L;
 
+        /** */
+        private final int histSize;
+
         /**
          * Creates ordered, not strict list set.
+         *
+         * @param histSize Max history size.
          */
-        private ExchangeFutureSet() {
+        private ExchangeFutureSet(int histSize) {
             super(new Comparator<GridDhtPartitionsExchangeFuture>() {
                 @Override public int compare(
                     GridDhtPartitionsExchangeFuture f1,
@@ -2497,6 +2501,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                     return t2.compareTo(t1);
                 }
             }, /*not strict*/false);
+
+            this.histSize = histSize;
         }
 
         /**
@@ -2507,7 +2513,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
             GridDhtPartitionsExchangeFuture fut) {
             GridDhtPartitionsExchangeFuture cur = super.addx(fut);
 
-            while (size() > EXCHANGE_HISTORY_SIZE) {
+            while (size() > histSize) {
                 GridDhtPartitionsExchangeFuture last = last();
 
                 if (!last.isDone())
