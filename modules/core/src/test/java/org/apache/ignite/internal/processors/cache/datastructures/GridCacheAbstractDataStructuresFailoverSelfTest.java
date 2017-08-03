@@ -778,6 +778,8 @@ public abstract class GridCacheAbstractDataStructuresFailoverSelfTest extends Ig
                 }
             });
 
+            long endTime = System.currentTimeMillis() + getTestTimeout();
+
             while (!fut.isDone()) {
                 try {
                     lock.lock();
@@ -797,6 +799,9 @@ public abstract class GridCacheAbstractDataStructuresFailoverSelfTest extends Ig
                         assertFalse(lock.isHeldByCurrentThread());
                     }
                 }
+
+                if (System.currentTimeMillis() > endTime)
+                    fail("Failed to wait for topology change threads.");
             }
 
             fut.get();
