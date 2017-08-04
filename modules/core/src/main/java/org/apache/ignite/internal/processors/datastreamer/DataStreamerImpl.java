@@ -768,9 +768,12 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
             }
 
             try {
-                AffinityTopologyVersion topVer = allowOverwrite() || cctx.isLocal() ?
-                        ctx.cache().context().exchange().readyAffinityVersion() :
-                        cctx.topology().readyTopologyVersion();
+                AffinityTopologyVersion topVer;
+
+                if (!cctx.isLocal())
+                    topVer = ctx.cache().context().exchange().lastTopologyFuture().get();
+                else
+                    topVer = ctx.cache().context().exchange().readyAffinityVersion();
 
                 for (DataStreamerEntry entry : entries) {
                     List<ClusterNode> nodes;

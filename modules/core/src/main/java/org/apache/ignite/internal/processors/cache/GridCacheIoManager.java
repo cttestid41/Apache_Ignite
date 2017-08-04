@@ -480,6 +480,24 @@ public class GridCacheIoManager extends GridCacheSharedManagerAdapter {
     }
 
     /**
+     * @return Lock or {@code null} if node is stopping.
+     */
+    @Nullable public Lock readLock() {
+        Lock lock = rw.readLock();
+
+        if (!lock.tryLock())
+            return null;
+
+        if (stopping) {
+            lock.unlock();
+
+            return null;
+        }
+
+        return lock;
+    }
+
+    /**
      *
      */
     public void writeLock() {

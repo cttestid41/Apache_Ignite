@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
@@ -2999,14 +3000,19 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
                                         newCrdFut.listen(new CI1<IgniteInternalFuture>() {
                                             @Override public void apply(IgniteInternalFuture fut) {
-                                                if (isDone() || !enterBusy())
+                                                if (isDone())
+                                                    return;
+
+                                                Lock lock = cctx.io().readLock();
+
+                                                if (lock == null)
                                                     return;
 
                                                 try {
                                                     onBecomeCoordinator((InitNewCoordinatorFuture) fut);
                                                 }
                                                 finally {
-                                                    leaveBusy();
+                                                    lock.unlock();
                                                 }
                                             }
                                         });

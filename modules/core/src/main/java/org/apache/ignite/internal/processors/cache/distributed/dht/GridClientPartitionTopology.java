@@ -313,7 +313,11 @@ public class GridClientPartitionTopology implements GridDhtPartitionTopology {
         GridDhtPartitionExchangeId exchId = exchFut.exchangeId();
 
         if (exchFut.context().events().hasServerLeft()) {
-            for (DiscoveryEvent evt : exchFut.context().events().events()) {
+            List<DiscoveryEvent> evts0 = exchFut.context().events().events();
+
+            for (int i = 0; i < evts0.size(); i++) {
+                DiscoveryEvent evt = evts0.get(i);
+
                 if (ExchangeDiscoveryEvents.serverLeftEvent(evt))
                     removeNode(evt.eventNode().id());
             }

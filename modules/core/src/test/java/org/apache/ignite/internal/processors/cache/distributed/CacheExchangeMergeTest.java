@@ -1315,7 +1315,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
                     if (cache.getConfiguration(CacheConfiguration.class).getAtomicityMode() == TRANSACTIONAL) {
                         for (TransactionConcurrency concurrency : TransactionConcurrency.values()) {
                             for (TransactionIsolation isolation : TransactionIsolation.values())
-                                checkNodeCaches(node, cache, concurrency, isolation);
+                                checkNodeCaches(err, node, cache, concurrency, isolation);
                         }
                     }
                 }
@@ -1327,12 +1327,15 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     /**
+     * @param err Error message.
      * @param node Node.
      * @param cache Cache.
      * @param concurrency Transaction concurrency.
      * @param isolation Transaction isolation.
      */
-    private void checkNodeCaches(Ignite node,
+    private void checkNodeCaches(
+        String err,
+        Ignite node,
         IgniteCache<Object, Object> cache,
         TransactionConcurrency concurrency,
         TransactionIsolation isolation) {
@@ -1362,7 +1365,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         }
 
         for (Map.Entry<Object, Object> e : map.entrySet())
-            assertEquals(e.getValue(), cache.get(e.getKey()));
+            assertEquals(err, e.getValue(), cache.get(e.getKey()));
     }
 
     /**

@@ -186,9 +186,11 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         }
 
         if (!CU.clientNode(node) && (type == EVT_NODE_FAILED || type == EVT_NODE_JOINED || type == EVT_NODE_LEFT)) {
-            assert lastAffVer == null || topVer.compareTo(lastAffVer) > 0;
+            synchronized (mux) {
+                assert lastAffVer == null || topVer.compareTo(lastAffVer) > 0;
 
-            lastAffVer = topVer;
+                lastAffVer = topVer;
+            }
         }
     }
 
@@ -266,7 +268,7 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
         CacheAffinityChangeMessage msg = null;
 
         synchronized (mux) {
-            if (waitInfo == null)
+            if (waitInfo == null || !waitInfo.topVer.equals(lastAffVer) )
                 return;
 
             Map<Integer, UUID> partWait = waitInfo.waitGrps.get(checkGrpId);
@@ -305,14 +307,14 @@ public class CacheAffinitySharedManager<K, V> extends GridCacheSharedManagerAdap
                     }
                 }
             }
-        }
 
-        try {
-            if (msg != null)
-                cctx.discovery().sendCustomEvent(msg);
-        }
-        catch (IgniteCheckedException e) {
-            U.error(log, "Failed to send affinity change message.", e);
+            try {
+                if (msg != null)
+                    cctx.discovery().sendCustomEvent(msg);
+            }
+            catch (IgniteCheckedException e) {
+                U.error(log, "Failed to send affinity change message.", e);
+            }
         }
     }
 
