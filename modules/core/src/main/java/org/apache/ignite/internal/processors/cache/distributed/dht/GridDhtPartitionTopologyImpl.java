@@ -1591,7 +1591,7 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
     }
 
     /** {@inheritDoc} */
-    @Override public void onExchangeDone(AffinityAssignment assignment, boolean updateRebalanceVer) {
+    @Override public void onExchangeDone(GridDhtPartitionsExchangeFuture fut, AffinityAssignment assignment, boolean updateRebalanceVer) {
         lock.writeLock().lock();
 
         try {
@@ -1601,8 +1601,15 @@ public class GridDhtPartitionTopologyImpl implements GridDhtPartitionTopology {
             readyTopVer = lastTopChangeVer = assignment.topologyVersion();
 
             if (!grp.isReplicated()) {
-                if (assignment.topologyVersion().compareTo(diffFromAffinityVer) >= 0)
-                    rebuildDiff(assignment);
+                boolean rebuildDiff = fut == null || fut.localJoinExchange() || fut.serverNodeDiscoveryEvent() ||
+                    fut.firstEvent().type() == EVT_DISCOVERY_CUSTOM_EVT || !diffFromAffinityVer.initialized();
+
+                if (rebuildDiff) {
+                    if (assignment.topologyVersion().compareTo(diffFromAffinityVer) >= 0)
+                        rebuildDiff(assignment);
+                }
+                else
+                    diffFromAffinityVer = readyTopVer;
             }
 
             if (updateRebalanceVer)

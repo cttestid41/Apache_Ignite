@@ -362,5 +362,5 @@ public interface GridDhtPartitionTopology {
      * @param assignment New affinity assignment.
      * @param updateRebalanceVer {@code True} if need check rebalance state.
      */
-    public void onExchangeDone(AffinityAssignment assignment, boolean updateRebalanceVer);
+    public void onExchangeDone(GridDhtPartitionsExchangeFuture fut, AffinityAssignment assignment, boolean updateRebalanceVer);
 }
