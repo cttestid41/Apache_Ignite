@@ -50,6 +50,7 @@ import org.apache.ignite.internal.TestDelayingCommunicationSpi;
 import org.apache.ignite.internal.TestRecordingCommunicationSpi;
 import org.apache.ignite.internal.managers.communication.GridIoMessage;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.IgniteInternalCache;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionsAbstractMessage;
@@ -80,6 +81,7 @@ import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
+import static org.apache.ignite.internal.events.DiscoveryCustomEvent.EVT_DISCOVERY_CUSTOM_EVT;
 
 /**
  *
@@ -199,7 +201,6 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     // TODO IGNITE-5578 joined merged node failed (client/server).
-    // TODO IGNITE-5578 check exchanges/affinity consistency.
 
     /**
      * @throws Exception If failed.
@@ -486,6 +487,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         fut2.get();
 
         checkCaches();
+
+        checkExchanges(srv0, 1, 3);
+        checkExchanges(ignite(1), 3);
+        checkExchanges(ignite(2), 3);
     }
 
     /**
@@ -531,7 +536,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         cfgCache = true;
 
-        IgniteInternalFuture fut = startGrids(srv0, 1, nodes);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 1, nodes);
 
         fut.get();
 
@@ -556,7 +561,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
             for (int i = 0; i < 3; i++) {
                 mergeExchangeWaitVersion(srv0, topVer + 3);
 
-                startGrids(srv0, topVer, 3).get();
+                startGridsAsync(srv0, topVer, 3).get();
 
                 topVer += 3;
             }
@@ -605,7 +610,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testStartCacheOnJoinAndFailMerge() throws Exception {
+    public void testStartCacheOnJoinAndMergeWithFail() throws Exception {
         cfgCache = false;
 
         final Ignite srv0 = startGrids(2);
@@ -614,13 +619,17 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         cfgCache = true;
 
-        IgniteInternalFuture fut = startGrids(srv0, 2, 2);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 2, 2);
 
         stopGrid(1);
 
         fut.get();
 
         checkCaches();
+
+        checkExchanges(srv0, 1, 2, 3, 5);
+        checkExchanges(ignite(2), 3, 5);
+        checkExchanges(ignite(3), 5);
     }
 
     /**
@@ -635,7 +644,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         cfgCache = true;
 
-        IgniteInternalFuture fut = startGrids(srv0, 2, 2);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 2, 2);
 
         stopGrid(0);
 
@@ -656,7 +665,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         cfgCache = true;
 
-        IgniteInternalFuture fut = startGrids(srv0, 1, 2);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 1, 2);
 
         stopGrid(0);
 
@@ -686,6 +695,10 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         fut.get();
 
         checkCaches();
+
+        checkExchanges(srv0, 1, 3);
+        checkExchanges(ignite(1), 3);
+        checkExchanges(ignite(2), 3);
     }
 
     /**
@@ -717,6 +730,12 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
         fut.get();
 
         checkCaches();
+
+        checkExchanges(srv0, 1, 2, 3, 5);
+        checkExchanges(ignite(1), 2, 3, 5);
+        checkExchanges(ignite(2), 3, 5);
+        checkExchanges(ignite(3), 5);
+        checkExchanges(ignite(4), 5);
     }
 
     /**
@@ -727,7 +746,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         mergeExchangeWaitVersion(srv0, 6);
 
-        IgniteInternalFuture fut = startGrids(srv0, 3, 3);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 3, 3);
 
         fut.get();
 
@@ -812,7 +831,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         mergeExchangeWaitVersion(srv0, 12);
 
-        IgniteInternalFuture fut = startGrids(srv0, 6, 2);
+        IgniteInternalFuture fut = startGridsAsync(srv0, 6, 2);
 
         fut.get();
 
@@ -903,7 +922,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         CountDownLatch latch = blockExchangeFinish(srvs, mode);
 
-        IgniteInternalFuture<?> fut = startGrids(srv0, srvs, 2);
+        IgniteInternalFuture<?> fut = startGridsAsync(srv0, srvs, 2);
 
         if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
@@ -946,7 +965,7 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
         CountDownLatch latch = blockExchangeFinish(srv0, srvs + 1, blockNodes, waitMsgNodes);
 
-        IgniteInternalFuture<?> fut = startGrids(srv0, srvs, startNodes);
+        IgniteInternalFuture<?> fut = startGridsAsync(srv0, srvs, startNodes);
 
         if (latch != null && !latch.await(WAIT_SECONDS, TimeUnit.SECONDS))
             fail("Failed to wait for expected messages.");
@@ -1370,6 +1389,47 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
 
     /**
      * @param node Node.
+     * @param vers Expected exchange versions.
+     */
+    private void checkExchanges(Ignite node, long... vers) {
+        IgniteKernal node0 = (IgniteKernal)node;
+
+        List<AffinityTopologyVersion> expVers = new ArrayList<>();
+
+        for (long ver : vers)
+            expVers.add(new AffinityTopologyVersion(ver));
+
+        List<AffinityTopologyVersion> doneVers = new ArrayList<>();
+
+        List<GridDhtPartitionsExchangeFuture> futs =
+            node0.context().cache().context().exchange().exchangeFutures();
+
+        for (int i = futs.size() - 1; i >= 0; i--) {
+            GridDhtPartitionsExchangeFuture fut = futs.get(i);
+
+            if (fut.exchangeDone() && fut.firstEvent().type() != EVT_DISCOVERY_CUSTOM_EVT) {
+                AffinityTopologyVersion resVer = fut.topologyVersion();
+
+                if (resVer != null)
+                    doneVers.add(resVer);
+            }
+        }
+
+        assertEquals(expVers, doneVers);
+
+        for (CacheGroupContext grpCtx : node0.context().cache().cacheGroups()) {
+            for (AffinityTopologyVersion ver : grpCtx.affinity().cachedVersions()) {
+                if (ver.minorTopologyVersion() > 0)
+                    continue;
+
+                assertTrue("Unexpected version [ver=" + ver + ", exp=" + expVers + ']',
+                    expVers.contains(ver));
+            }
+        }
+    }
+
+    /**
+     * @param node Node.
      * @param topVer Exchange version.
      * @throws Exception If failed.
      */
@@ -1386,13 +1446,15 @@ public class CacheExchangeMergeTest extends GridCommonAbstractTest {
     }
 
     /**
+     * Sequentially starts nodes so that node name is consistent with node order.
+     *
      * @param node Some existing node.
      * @param startIdx Start node index.
      * @param cnt Number of nodes.
      * @return Start future.
      * @throws Exception If failed.
      */
-    private IgniteInternalFuture startGrids(Ignite node, int startIdx, int cnt) throws Exception {
+    private IgniteInternalFuture startGridsAsync(Ignite node, int startIdx, int cnt) throws Exception {
         GridCompoundFuture fut = new GridCompoundFuture();
 
         for (int i = 0; i < cnt; i++) {

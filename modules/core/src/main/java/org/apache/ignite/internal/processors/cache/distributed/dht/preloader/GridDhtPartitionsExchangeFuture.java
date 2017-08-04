@@ -359,7 +359,11 @@ public class GridDhtPartitionsExchangeFuture extends GridDhtTopologyFutureAdapte
 
     /** {@inheritDoc} */
     @Override public AffinityTopologyVersion topologyVersion() {
-        assert exchangeDone();
+        /*
+        Should not be called before exchange is finished since result version can change in
+        case of merged exchanges.
+         */
+        assert exchangeDone() : "Should not be called before exchange is finished";
 
         return exchCtx.events().topologyVersion();
     }

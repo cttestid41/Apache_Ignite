@@ -62,6 +62,8 @@ public interface GridDhtTopologyFuture extends IgniteInternalFuture<AffinityTopo
      * is completed before {@link GridFutureAdapter#onDone(Object, Throwable)} is called on
      * {@link GridDhtPartitionsExchangeFuture}, it is guaranteed that this method will return {@code true}
      * if affinity ready future is finished.
+     * <p>
+     * Also this method returns {@code false} for merged exchange futures.
      *
      * @return {@code True} if exchange is finished and result topology version can be used.
      */
